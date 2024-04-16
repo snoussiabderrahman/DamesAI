@@ -10,6 +10,7 @@ game dames italian against AI
 * Joueur qui commence : Blancs ;
 * Prise autorisée des pions : 
    1-Diagonales avant seulement ;
+  
    2-Les rafles sont limitées à trois prises ;
    3-Un pion ne peut pas prendre une dame ;
 * Dame : Ne se déplace que d'une case vers l'avant ou l'arrière ;
