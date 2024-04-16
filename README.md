@@ -9,7 +9,7 @@ game dames italian against AI
 * Cases utilisées : cases sombres ;
 * Joueur qui commence : Blancs ;
 * Prise autorisée des pions :
-* 
+
    1-Diagonales avant seulement ;
   
    2-Les rafles sont limitées à trois prises ;
@@ -19,7 +19,7 @@ game dames italian against AI
 * Dame : Ne se déplace que d'une case vers l'avant ou l'arrière ;
 * Contrainte de prise : prise majoritaire obligatoire ;
 * Prise qualitative :
-* 
+
    1-Entre deux rafles de valeurs équivalente, il faut si possible effectuer la rafle avec une dame plutôt qu'un pion ;
   
    2-Une dame ayant le choix entre deux rafles comprenant le même nombre de pièces, doit choisir celle qui comprend le plus de dames ;
