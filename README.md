@@ -1,5 +1,5 @@
 # DamesAI
-game dames italian against AI
+checkers game  against AI
 
 == Règles ==
 ------------------------------------------------------------------------------
