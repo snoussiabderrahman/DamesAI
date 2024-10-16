@@ -2,7 +2,7 @@ import pygame
 from checkers.constants import WIDTH, HEIGHT, SQUARE_SIZE, BLACK
 from checkers.game import Game
 from minimax.algorithm import alphabeta
-
+from time import sleep
 
 FPS = 60
 
@@ -43,6 +43,7 @@ def main():
                 game.select(row, col)
             
         game.update()
+        time.sleep(.1)
     
     pygame.quit()
 
