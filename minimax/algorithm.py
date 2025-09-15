@@ -197,7 +197,7 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
         return position.evaluate(color_player), position
     
     best_move = None
-    moves = position.get_all_moves(position, color_player)
+    moves = position.get_valid_moves(position, color_player)
 
     # Triage des mouvements avec Killer Moves
     if depth in killer_moves:

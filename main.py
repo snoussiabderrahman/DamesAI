@@ -1,8 +1,8 @@
 import pygame
 from checkers.constants import WIDTH, HEIGHT, SQUARE_SIZE, BLACK
 from checkers.game import Game
-from minimax.algorithm import alphabeta
-from time import sleep
+from minimax.algorithm import NegaMax
+import time
 
 FPS = 60
 
@@ -19,7 +19,7 @@ def main():
     run = True
     clock = pygame.time.Clock()
     game = Game(WIN)
-
+    killer_moves = {}
     while run:
         clock.tick(FPS)
 
@@ -29,7 +29,7 @@ def main():
         
     
         if game.turn == BLACK:
-            value, new_board = alphabeta(game.get_board(), 6, BLACK,float("-inf"), float("inf"), game)
+            value, new_board = NegaMax(game.get_board(), 6, BLACK,float("-inf"), float("inf"), game, killer_moves)
             game.ai_move(new_board)
         
 
