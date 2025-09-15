@@ -29,7 +29,7 @@ def main():
         
     
         if game.turn == BLACK:
-            value, new_board = NegaMax(game.get_board(), 6, BLACK,float("-inf"), float("inf"), game, killer_moves)
+            value, new_board = NegaMax(game.get_board(), 7, BLACK,float("-inf"), float("inf"), game, killer_moves)
             game.ai_move(new_board)
         
 

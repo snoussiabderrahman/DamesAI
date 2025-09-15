@@ -198,7 +198,7 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
         return position.evaluate(color_player), position
     
     best_move = None
-    moves = position.get_all_moves(position, color_player)
+    moves = get_all_moves(position, color_player)
 
     # Triage des mouvements avec Killer Moves
     if depth in killer_moves:
@@ -237,7 +237,7 @@ def get_all_moves(board, color):
         for move, skip in valid_moves.items():
             temp_board = deepcopy(board)
             temp_piece = temp_board.get_piece(piece.row, piece.col)
-            print(temp_board)
+            #print(temp_board)
             new_board = simulate_move(temp_piece, move, temp_board, skip)
             #print(skip)
             moves[new_board] = skip
