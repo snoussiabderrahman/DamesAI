@@ -1,6 +1,7 @@
 from copy import deepcopy
 import random
 from checkers.constants import BLACK, CREAM, ROWS, COLS
+import pygame
 
 PIECE_TYPES = ['pawn', 'king']  # Types de pièces
 NUM_PIECES = len(PIECE_TYPES) * 2  # Nombre de types de pièces (pour CREAM et BLACK)
@@ -197,7 +198,7 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
         return position.evaluate(color_player), position
     
     best_move = None
-    moves = position.get_valid_moves(position, color_player)
+    moves = position.get_all_moves(position, color_player)
 
     # Triage des mouvements avec Killer Moves
     if depth in killer_moves:
@@ -227,4 +228,45 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
     return alpha, best_move
 
 
+def get_all_moves(board, color):
+    moves = {}
+
+    for piece in board.get_all_pieces(color):
+        valid_moves = board.get_valid_moves(piece)
+        #print(valid_moves)
+        for move, skip in valid_moves.items():
+            temp_board = deepcopy(board)
+            temp_piece = temp_board.get_piece(piece.row, piece.col)
+            print(temp_board)
+            new_board = simulate_move(temp_piece, move, temp_board, skip)
+            #print(skip)
+            moves[new_board] = skip
+    #print(moves)
+    moves = extract_max_jumps(moves)
+    
+    return moves
+
+def extract_max_jumps(moves):
+    if moves:
+        max_jumps = max(len(skipped) for skipped in moves.values())  
+        max_jump_moves = {move: skipped for move, skipped in moves.items() if len(skipped) == max_jumps}
+        return max_jump_moves
+    else:
+        return {}
+
+def draw_moves(game, board, piece):
+    valid_moves = board.get_valid_moves(piece)
+    board.draw(game.win)
+    pygame.draw.circle(game.win, (0,255,0), (piece.x, piece.y), 50, 5)
+    game.draw_valid_moves(valid_moves.keys())
+    pygame.display.update()
+    #pygame.time.delay(100)
+
+def simulate_move(piece, move, board, skip):
+    #print(board)
+    board.move(piece, move[0], move[1])
+    if skip:
+        board.remove(skip)
+    
+    return board
 
