@@ -6,7 +6,7 @@ from minimax.profiler import AIProfiler
 import time
 
 FPS = 60
-SEARCH_DEPTH = 5
+SEARCH_DEPTH = 8
 
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Checkers')

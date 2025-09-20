@@ -92,11 +92,18 @@ class Board:
     def get_valid_moves(self, piece):
         moves = {}
         if piece.king:
-            # For kings, we get all possible valid moves, both jumps and simple moves.
-            # The game logic will later filter to enforce mandatory jumps.
-            moves.update(self._find_king_moves(piece.row, piece.col, piece.color))
+            # Pour les rois, on cherche d'abord les sauts possibles.
+            jumps = self._find_king_jumps(piece.row, piece.col, piece.color, [])
+            
+            # Si des sauts existent, ils sont obligatoires et sont les seuls coups valides.
+            if jumps:
+                return jumps
+
+            # S'il n'y a pas de sauts, alors on cherche les mouvements simples.
+            moves.update(self._find_king_simple_moves(piece.row, piece.col))
+            return moves
         else:
-            # The logic for men remains the same as it was.
+            # La logique pour les pions reste inchangée.
             left = piece.col - 1
             right = piece.col + 1
             row = piece.row
@@ -109,67 +116,72 @@ class Board:
         
         return moves
 
-    def _find_king_moves(self, row, col, color, skipped=[]):
-        moves = {}
-        # Iterate through the 4 diagonal directions (up-left, up-right, down-left, down-right)
+    def _find_king_jumps(self, row, col, color, skipped):
+        """
+        Fonction récursive qui ne trouve QUE les séquences de sauts pour un roi.
+        Elle ne retourne que les points d'atterrissage finaux de chaque séquence.
+        """
+        jumps = {}
+        
+        # Itérer à travers les 4 directions diagonales
         for dr, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            opponent_found = None
             
-            path_moves = {}
-            jump_found_on_path = False
-
-            # Scan along one diagonal path
+            # Scanner le long d'une diagonale
             for i in range(1, ROWS):
                 r, c = row + i * dr, col + i * dc
 
-                # If we go off the board, stop scanning this path
                 if not (0 <= r < ROWS and 0 <= c < COLS):
-                    break
+                    break # Hors du plateau
 
                 current_piece = self.board[r][c]
 
-                if current_piece == 0: # Empty square
-                    if jump_found_on_path:
-                        # This is a valid landing spot after a jump
-                        path_moves[(r,c)] = jump_found_on_path
-                    elif not skipped:
-                        # This is a simple (non-capture) move
-                        moves[(r,c)] = []
-                    continue # Continue scanning along the path
+                if opponent_found:
+                    # Si on a déjà sauté une pièce, on cherche maintenant une case vide
+                    if current_piece == 0:
+                        # Case d'atterrissage trouvée. Maintenant, cherchez des sauts supplémentaires à partir d'ici.
+                        new_skipped = skipped + [opponent_found]
+                        continuations = self._find_king_jumps(r, c, color, new_skipped)
+                        
+                        if not continuations:
+                            # Si pas d'autres sauts, c'est un point d'atterrissage final.
+                            jumps[(r, c)] = new_skipped
+                        else:
+                            # S'il y a d'autres sauts, les vrais points finaux sont ceux des continuations.
+                            jumps.update(continuations)
+                    else:
+                        # La case est bloquée, on ne peut pas atterrir ici.
+                        break
+                elif current_piece != 0:
+                    if current_piece.color == color:
+                        break # Bloqué par sa propre pièce
+                    else:
+                        # C'est une pièce adverse qu'on peut sauter.
+                        if current_piece not in skipped:
+                            opponent_found = current_piece
+                        else:
+                            break # Déjà sauté cette pièce, on ne peut pas la sauter à nouveau.
 
-                # If we find a piece of the same color, the path is blocked
-                elif current_piece.color == color:
-                    break
+        return jumps
 
-                # If we find an opponent's piece
+    def _find_king_simple_moves(self, row, col):
+        """Trouve les mouvements simples (non-capture) pour un roi."""
+        moves = {}
+        # Itérer à travers les 4 directions diagonales
+        for dr, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            # Scanner le long de la diagonale
+            for i in range(1, ROWS):
+                r, c = row + i * dr, col + i * dc
+
+                if not (0 <= r < ROWS and 0 <= c < COLS):
+                    break # Hors du plateau
+
+                current_piece = self.board[r][c]
+                if current_piece == 0:
+                    moves[(r, c)] = [] # Case vide, mouvement valide
                 else:
-                    # If we've already jumped a piece on this path, we can't jump another (two in a row)
-                    if jump_found_on_path:
-                        break
-                    
-                    # Check if this piece has already been jumped in the current sequence
-                    if current_piece in skipped:
-                        break
-                    
-                    # This is the piece we can potentially jump over
-                    jump_found_on_path = [current_piece]
-
-            # After scanning a full diagonal, if we found jumps, we need to explore multi-jumps
-            if path_moves:
-                for (end_r, end_c), jumped_piece in path_moves.items():
-                    # Add the move to the main moves dictionary
-                    new_skipped = skipped + jumped_piece
-                    moves[(end_r, end_c)] = new_skipped
-
-                    # Recursively check for more jumps from this landing spot
-                    # We pass the new list of skipped pieces to the recursive call
-                    more_moves = self._find_king_moves(end_r, end_c, color, new_skipped)
-                    
-                    # We only care about further JUMPS, not simple moves from the new spot
-                    for move, more_skipped in more_moves.items():
-                        if more_skipped: # If it's a jump
-                            moves[move] = more_skipped
+                    break # Le chemin est bloqué par une pièce
         return moves
-
 
     def traverse_left(self, start, stop, step, color, left, skipped=[]):
         moves = {}
