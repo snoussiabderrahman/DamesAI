@@ -65,8 +65,6 @@ class Game:
                 self.select(row, col)
             return True # Terminer l'action après une tentative de mouvement
 
-        # --- NOUVELLE LOGIQUE DE SÉLECTION CORRIGÉE ---
-
         # 1. Obtenir la liste globale des coups de capture obligatoires
         mandatory_moves = self._get_all_mandatory_moves_for_turn(self.turn)
 
