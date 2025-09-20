@@ -1,47 +1,10 @@
-from copy import deepcopy
-import random
 from checkers.constants import BLACK, CREAM, ROWS, COLS
 import pygame
 
-PIECE_TYPES = ['pawn', 'king']  # Types de pièces
-NUM_PIECES = len(PIECE_TYPES) * 2  # Nombre de types de pièces (pour CREAM et BLACK)
-HASH_SIZE = 2 ** 20  # Taille de la table de transposition
 
-# Zobrist Hashing
-zobrist_table = {}
-for piece in ['black_pawn', 'black_king', 'cream_pawn', 'cream_king']:
-    for row in range(ROWS):
-        for col in range(COLS):
-            zobrist_table[(piece, row, col)] = random.getrandbits(64)
 
-# Transposition table
-transposition_table = {}
-
-def calculate_zobrist_hash(board):
-    hash_key = 0
-    for row in range(ROWS):
-        for col in range(COLS):
-            piece = board.get_piece(row, col)
-            if piece != 0:
-                piece_type = 'pawn' if piece.is_pawn() else 'king'  # Assurez-vous d'avoir une méthode pour vérifier le type de pièce
-                color = 'black' if piece.color == BLACK else 'cream'
-                piece_identifier = f"{color}_{piece_type}"
-                hash_key ^= zobrist_table[(piece_identifier, row, col)]
-    return hash_key
-
-history_table = {}  # Dictionnaire pour stocker les évaluations des mouvements
-
-def update_history(move, depth):
-    if move not in history_table:
-        history_table[move] = 0
-    # Plus le coup est profond dans l'arbre, plus il est important
-    history_table[move] += 2 ** depth  
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
-# minimax/algorithm.py
-
-# ... (les autres fonctions comme get_possible_moves, get_capture_moves, etc., restent les mêmes) ...
-
 def quiescenceSearch(board, alpha, beta, color_player, profiler):
     """
     Recherche de quiétude qui utilise maintenant le pattern Make/Undo.
@@ -57,7 +20,6 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     if alpha < stand_pat_eval:
         alpha = stand_pat_eval
 
-    # --- NOUVELLE LOGIQUE POUR OBTENIR ET PARCOURIR LES COUPS ---
     # 1. Obtenir les coups de capture possibles
     capture_moves_dict = get_capture_moves(board, color_player)
     
@@ -98,7 +60,6 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
         return position.evaluate(color_player), None
 
     if depth == 0:
-        # === CORRECTION : On passe le profiler à la Q-Search ===
         q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler)
         return q_eval, None
     
