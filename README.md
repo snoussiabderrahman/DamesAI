@@ -3,27 +3,22 @@ checkers game  against AI
 
 == Règles ==
 ------------------------------------------------------------------------------
-* Taille du plateau: 64 cases (8 x 8) ;
-* Nombre de pions : 24 (2 x 12) ;
-* Orientation du plateau: la grande diagonale relie la gauche de chaque joueur ;
-* Cases utilisées : cases sombres ;
-* Joueur qui commence : Blancs ;
-* Prise autorisée des pions :
+Plateau et Pions :
+- Plateau : Le jeu se déroule sur un damier de 8x8 cases, alternant des couleurs claires et foncées.
+- Pions : Chaque joueur commence avec des pions.
+Déplacement
+- Déplacement vers l'avant : Les pions normaux ne peuvent se déplacer que d'une case en diagonale vers l'avant.
+- Déplacement de la Dame : Lorsqu'un pion atteint la dernière rangée du côté opposé du plateau (la "ligne de promotion"), il est promu en Dame. Les Dames peuvent se déplacer et capturer en diagonale, vers l'avant comme vers l'arrière.
 
-   1-Diagonales avant seulement ;
-  
-   2-Les rafles sont limitées à trois prises ;
-  
-   3-Un pion ne peut pas prendre une dame ;
-  
-* Dame : Ne se déplace que d'une case vers l'avant ou l'arrière ;
-* Contrainte de prise : prise majoritaire obligatoire ;
-* Prise qualitative :
+Captures :
+- Prise obligatoire : Si un joueur a la possibilité de capturer un pion adverse en sautant par-dessus pour atterrir sur une case vide juste derrière, il doit le faire.
+- Prises multiples : Si, après une capture, il est possible d'effectuer une autre capture à partir de la nouvelle position, le joueur doit continuer à sauter et à capturer autant de pions que possible au cours du même tour.
+- Prise et promotion en Dame : Selon certaines variantes, si un pion atterrit sur la ligne de promotion en effectuant une capture et qu'il peut ensuite capturer un autre pion en arrière en tant que Dame, il doit le faire dans le même tour.
 
-   1-Entre deux rafles de valeurs équivalente, il faut si possible effectuer la rafle avec une dame plutôt qu'un pion ;
-  
-   2-Une dame ayant le choix entre deux rafles comprenant le même nombre de pièces, doit choisir celle qui comprend le plus de dames ;
-  
-   3-Une dame ayant le choix entre deux rafles comprenant le même nombre de dames et de pions doit choisir entre celles qui permettent de capturer une dame adverse le plus rapidement ;
-  
-* Souffler : interdit depuis 1936.
+Gagner la partie 
+
+La partie se termine dans l'une des situations suivantes :
+1. Tous les pions d'un joueur sont capturés.
+2. Un joueur ne peut plus effectuer de mouvement légal (il est bloqué).
+
+Le joueur qui capture tous les pions de l'adversaire ou qui le laisse sans aucun mouvement possible remporte la partie.

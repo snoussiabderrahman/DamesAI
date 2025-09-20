@@ -75,7 +75,7 @@ class Board:
                         self.black_left -= 1
 
     def winner(self, color):
-        if self.black_left + self.black_kings == 1 and self.cream_left + self.cream_kings == 1:
+        if self.black_left == 0 and self.black_kings == 1 and self.cream_left == 0 and self.cream_kings == 1:
             return "Equal"
         
         pieces = self.get_all_pieces(color)
@@ -89,7 +89,7 @@ class Board:
             return "Player cream WINS!"
         
  
-    
+    '''
     def get_valid_moves(self, piece):
         moves = {}
         left = piece.col - 1
@@ -109,7 +109,89 @@ class Board:
             moves.update(self.traverse_left_king(row +1, min(row+3, ROWS), 1, piece.color, left, [piece.row, piece.col]))
             moves.update(self.traverse_right_king(row +1, min(row+3, ROWS), 1, piece.color, right, [piece.row, piece.col]))
         return moves
-    
+    '''
+    def get_valid_moves(self, piece):
+        moves = {}
+        if piece.king:
+            # For kings, we get all possible valid moves, both jumps and simple moves.
+            # The game logic will later filter to enforce mandatory jumps.
+            moves.update(self._find_king_moves(piece.row, piece.col, piece.color))
+        else:
+            # The logic for men remains the same as it was.
+            left = piece.col - 1
+            right = piece.col + 1
+            row = piece.row
+            if piece.color == CREAM:
+                moves.update(self.traverse_left(row - 1, max(row-3, -1), -1, piece.color, left))
+                moves.update(self.traverse_right(row - 1, max(row-3, -1), -1, piece.color, right))
+            if piece.color == BLACK:
+                moves.update(self.traverse_left(row + 1, min(row+3, ROWS), 1, piece.color, left))
+                moves.update(self.traverse_right(row + 1, min(row+3, ROWS), 1, piece.color, right))
+        
+        return moves
+
+    def _find_king_moves(self, row, col, color, skipped=[]):
+        moves = {}
+        # Iterate through the 4 diagonal directions (up-left, up-right, down-left, down-right)
+        for dr, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
+            
+            path_moves = {}
+            jump_found_on_path = False
+
+            # Scan along one diagonal path
+            for i in range(1, ROWS):
+                r, c = row + i * dr, col + i * dc
+
+                # If we go off the board, stop scanning this path
+                if not (0 <= r < ROWS and 0 <= c < COLS):
+                    break
+
+                current_piece = self.board[r][c]
+
+                if current_piece == 0: # Empty square
+                    if jump_found_on_path:
+                        # This is a valid landing spot after a jump
+                        path_moves[(r,c)] = jump_found_on_path
+                    elif not skipped:
+                        # This is a simple (non-capture) move
+                        moves[(r,c)] = []
+                    continue # Continue scanning along the path
+
+                # If we find a piece of the same color, the path is blocked
+                elif current_piece.color == color:
+                    break
+
+                # If we find an opponent's piece
+                else:
+                    # If we've already jumped a piece on this path, we can't jump another (two in a row)
+                    if jump_found_on_path:
+                        break
+                    
+                    # Check if this piece has already been jumped in the current sequence
+                    if current_piece in skipped:
+                        break
+                    
+                    # This is the piece we can potentially jump over
+                    jump_found_on_path = [current_piece]
+
+            # After scanning a full diagonal, if we found jumps, we need to explore multi-jumps
+            if path_moves:
+                for (end_r, end_c), jumped_piece in path_moves.items():
+                    # Add the move to the main moves dictionary
+                    new_skipped = skipped + jumped_piece
+                    moves[(end_r, end_c)] = new_skipped
+
+                    # Recursively check for more jumps from this landing spot
+                    # We pass the new list of skipped pieces to the recursive call
+                    more_moves = self._find_king_moves(end_r, end_c, color, new_skipped)
+                    
+                    # We only care about further JUMPS, not simple moves from the new spot
+                    for move, more_skipped in more_moves.items():
+                        if more_skipped: # If it's a jump
+                            moves[move] = more_skipped
+        return moves
+
+
     def traverse_left(self, start, stop, step, color, left, skipped=[]):
         moves = {}
         last = []
@@ -181,7 +263,7 @@ class Board:
         return moves
     
     ##########################################################
-
+    '''
     def traverse_left_king(self, start, stop, step, color, left, piece ,skipped=[]):
         moves = {}
         last = []
@@ -261,6 +343,7 @@ class Board:
         
         return moves
     #------------------#
+    '''
     def evaluate(self, color):
         if color == BLACK:
             return self.black_left - self.cream_left +  (self.black_kings - self.cream_kings)/12
