@@ -89,7 +89,10 @@ def quiescenceSearch(board, alpha, beta, color_player):
     return alpha
 
 #*********** Negamax with killer moves and ordering moves optimizations  ***********#
-def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
+def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, profiler):
+
+    # === PROFILER: Incrémente le nombre de nœuds visités ===
+    profiler.increment_nodes()
 
     if position.winner(game.turn) is not None:
         return position.evaluate(color_player), position # Le jeu est fini, retourne l'évaluation
@@ -115,15 +118,17 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves):
             moves_list.insert(0, killer_move)
 
     for move in moves:
-        evaluation = -NegaMax(move, depth-1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, game, killer_moves)[0]
+        evaluation = -NegaMax(move, depth-1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, game, killer_moves, profiler)[0]
         
         if evaluation > alpha:
             best_move = move
             alpha = evaluation
             
             if alpha >= beta:
-                update_history(best_move, depth)  
+                #update_history(best_move, depth)  
                 # Add a check to ensure best_move is not None
+                # === PROFILER: Incrémente le compteur de coupures ===
+                profiler.increment_cutoffs()
                 if best_move is not None:
                     if depth not in killer_moves:
                         killer_moves[depth] = best_move

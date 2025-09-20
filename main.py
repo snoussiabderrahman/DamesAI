@@ -2,9 +2,11 @@ import pygame
 from checkers.constants import WIDTH, HEIGHT, SQUARE_SIZE, BLACK
 from checkers.game import Game
 from minimax.algorithm import NegaMax
+from minimax.profiler import AIProfiler
 import time
 
 FPS = 60
+SEARCH_DEPTH = 5
 
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption('Checkers')
@@ -20,17 +22,35 @@ def main():
     clock = pygame.time.Clock()
     game = Game(WIN)
     killer_moves = {}
+    profiler = AIProfiler()
+
     while run:
         clock.tick(FPS)
 
         if game.winner(game.turn) != None:
             print(game.winner(game.turn))
             run = False
-        
+
     
         if game.turn == BLACK:
-            value, new_board = NegaMax(game.get_board(), 4, BLACK,float("-inf"), float("inf"), game, killer_moves)
-            game.ai_move(new_board)
+            # 1. Réinitialisez et démarrez le chronomètre
+            profiler.reset()
+            profiler.start_timer()
+
+            # 2. Appelez NegaMax en passant l'objet profiler
+            value, new_board = NegaMax(game.get_board(), SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), game, killer_moves, profiler)
+            
+            # 3. Arrêtez le chronomètre
+            profiler.stop_timer()
+
+            # 4. Affichez les résultats
+            profiler.display_results(SEARCH_DEPTH, value, new_board)
+
+            # Si un mouvement a été trouvé, exécutez-le
+            if new_board:
+                game.ai_move(new_board)
+            else:
+                print("AI could not find a valid move.")
         
 
         for event in pygame.event.get():
