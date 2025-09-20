@@ -88,28 +88,7 @@ class Board:
         else:
             return "Player cream WINS!"
         
- 
-    '''
-    def get_valid_moves(self, piece):
-        moves = {}
-        left = piece.col - 1
-        right = piece.col + 1
-        row = piece.row
-
-        if not piece.king:
-            if piece.color == CREAM:
-                moves.update(self.traverse_left(row -1, max(row-3, -1), -1, piece.color, left))
-                moves.update(self.traverse_right(row -1, max(row-3, -1), -1, piece.color, right))
-            if piece.color == BLACK :
-                moves.update(self.traverse_left(row +1, min(row+3, ROWS), 1, piece.color, left))
-                moves.update(self.traverse_right(row +1, min(row+3, ROWS), 1, piece.color, right))
-        else:
-            moves.update(self.traverse_left_king(row -1, max(row-3, -1), -1, piece.color, left, [piece.row, piece.col]))
-            moves.update(self.traverse_right_king(row -1, max(row-3, -1), -1, piece.color, right, [piece.row, piece.col]))
-            moves.update(self.traverse_left_king(row +1, min(row+3, ROWS), 1, piece.color, left, [piece.row, piece.col]))
-            moves.update(self.traverse_right_king(row +1, min(row+3, ROWS), 1, piece.color, right, [piece.row, piece.col]))
-        return moves
-    '''
+    
     def get_valid_moves(self, piece):
         moves = {}
         if piece.king:
@@ -261,89 +240,7 @@ class Board:
             right += 1
         
         return moves
-    
-    ##########################################################
-    '''
-    def traverse_left_king(self, start, stop, step, color, left, piece ,skipped=[]):
-        moves = {}
-        last = []
-        if piece[0] == start and piece[1] == left:
-            return moves
-
-        for r in range(start, stop, step):
-            if left < 0:
-                break
-            
-            current = self.board[r][left]
-            if current == 0:
-                if skipped and not last:
-                    break
-                elif skipped:
-                    moves[(r, left)] = skipped + last
-                    new_skipped = skipped + last
-                else:
-                    new_skipped = last
-                    moves[(r, left)] = last
-                
-                if last:
-                    row_max = max(r-3, -1) 
-                    row_min = min(r+3, ROWS) 
-
-                    piece = [r-step, left+1]
-                    moves.update(self.traverse_left_king(r+step, row_max if step==-1 else row_min, step, color, left-1, piece,new_skipped))
-                    moves.update(self.traverse_right_king(r+step, row_max if step==-1 else row_min, step, color, left+1, piece,new_skipped))
-                    moves.update(self.traverse_left_king(r-step, row_max if step==1 else row_min, -step, color, left-1, piece,new_skipped))
-                    moves.update(self.traverse_right_king(r-step, row_max if step==1 else row_min, -step, color, left+1, piece,new_skipped))
-                break
-            elif current.color == color:
-                break
-            else:
-                last = [current]
-
-            left -= 1
-        
-        return moves
-    def traverse_right_king(self, start, stop, step, color, right, piece, skipped=[]):
-        moves = {}
-        last = []
-        if piece[0] == start and piece[1] == right:
-            return moves
-        
-        for r in range(start, stop, step):
-            if right >= COLS:
-                break
-            
-            current = self.board[r][right]
-            if current == 0:
-                if skipped and not last:
-                    break
-                elif skipped:
-                    moves[(r,right)] = skipped + last
-                    new_skipped = skipped + last
-                else:
-                    new_skipped = last
-                    moves[(r, right)] = last
-                
-                if last:
-                    row_max = max(r-3, -1)
-                    row_min = min(r+3, ROWS)
-
-                    piece = [r-step, right-1]
-                    moves.update(self.traverse_left_king(r+step, row_max if step==-1 else row_min, step, color, right-1, piece,new_skipped))
-                    moves.update(self.traverse_right_king(r+step, row_max if step==-1 else row_min, step, color, right+1, piece,new_skipped))
-                    moves.update(self.traverse_left_king(r-step, row_max if step==1 else row_min, -step, color, right-1, piece,new_skipped))
-                    moves.update(self.traverse_right_king(r-step, row_max if step==1 else row_min, -step, color, right+1, piece,new_skipped))
-                break
-            elif current.color == color:
-                break
-            else:
-                last = [current]
-
-            right += 1
-        
-        return moves
-    #------------------#
-    '''
+   
     def evaluate(self, color):
         if color == BLACK:
             return self.black_left - self.cream_left +  (self.black_kings - self.cream_kings)/12
@@ -361,8 +258,73 @@ class Board:
     def get_board(self):
         return self.board
 
+    def make_move(self, piece, end_row, end_col):
+        """
+        Applique un coup au plateau.
+        Retourne les pièces capturées et si une promotion a eu lieu.
+        """
+        start_row, start_col = piece.row, piece.col
         
-    
+        # 1. Déplacer la pièce sur le plateau
+        self.board[start_row][start_col] = 0
+        self.board[end_row][end_col] = piece
+        piece.move(end_row, end_col)
 
-    
-    
+        # 2. Gérer la promotion en roi
+        was_promoted = False
+        if (end_row == ROWS - 1 or end_row == 0) and not piece.king:
+            piece.make_king()
+            was_promoted = True
+            if piece.color == BLACK:
+                self.black_kings += 1
+            else:
+                self.cream_kings += 1
+
+        return was_promoted
+
+    def undo_move(self, piece, start_row, start_col, was_promoted):
+        """Annule un coup pour restaurer l'état précédent du plateau."""
+        current_row, current_col = piece.row, piece.col
+        
+        # 1. Annuler la promotion si nécessaire
+        if was_promoted:
+            piece.king = False
+            if piece.color == BLACK:
+                self.black_kings -= 1
+            else:
+                self.cream_kings -= 1
+                
+        # 2. Replacer la pièce à sa position d'origine
+        self.board[start_row][start_col] = piece
+        self.board[current_row][current_col] = 0
+        piece.move(start_row, start_col)
+
+    def remove_and_get_skipped(self, skipped_pieces):
+        """
+        Retire les pièces capturées du plateau, mais retourne les pièces
+        retirées pour pouvoir les restaurer plus tard.
+        """
+        for piece in skipped_pieces:
+            self.board[piece.row][piece.col] = 0
+            # Mettre à jour les comptes
+            if piece.king:
+                if piece.color == CREAM: self.cream_kings -= 1
+                else: self.black_kings -= 1
+            else:
+                if piece.color == CREAM: self.cream_left -= 1
+                else: self.black_left -= 1
+        return skipped_pieces
+
+    def restore_skipped(self, skipped_pieces):
+        """Restaure les pièces capturées sur le plateau."""
+        for piece in skipped_pieces:
+            self.board[piece.row][piece.col] = piece
+            # Mettre à jour les comptes
+            if piece.king:
+                if piece.color == CREAM: self.cream_kings += 1
+                else: self.black_kings += 1
+            else:
+                if piece.color == CREAM: self.cream_left += 1
+                else: self.black_left += 1
+        
+        

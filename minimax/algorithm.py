@@ -37,131 +37,159 @@ def update_history(move, depth):
     # Plus le coup est profond dans l'arbre, plus il est important
     history_table[move] += 2 ** depth  
 
-# Récupérer les coups de capture uniquement pour Quiescence Search
-def get_capture_moves(board, color):
-    capture_moves = {}
-    
-    for piece in board.get_all_pieces(color):
-        valid_moves = board.get_valid_moves(piece)
-        for move, skip in valid_moves.items():
-            if skip: # C'est un coup de capture
-                temp_board = deepcopy(board)
-                temp_piece = temp_board.get_piece(piece.row, piece.col)
-                # simulate_move a été dépréciée car elle est dans la boucle de get_all_moves
-                new_board = simulate_move(temp_piece, move, temp_board, skip)
-                capture_moves[new_board] = skip
-
-    # Assure que même dans la Q-search, on respecte la prise maximale obligatoire
-    return extract_max_jumps(capture_moves)
-
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
-def quiescenceSearch(board, alpha, beta, color_player):
-    # Évalue la position actuelle "sans rien faire" (stand-pat)
+# minimax/algorithm.py
+
+# ... (les autres fonctions comme get_possible_moves, get_capture_moves, etc., restent les mêmes) ...
+
+def quiescenceSearch(board, alpha, beta, color_player, profiler):
+    """
+    Recherche de quiétude qui utilise maintenant le pattern Make/Undo.
+    Elle n'explore que les coups de capture.
+    """
+    profiler.increment_nodes()
+
     stand_pat_eval = board.evaluate(color_player)
 
-    # Si l'évaluation actuelle est déjà meilleure que beta, on peut couper.
-    # L'adversaire a déjà un meilleur coup ailleurs.
     if stand_pat_eval >= beta:
         return beta
 
-    # Met à jour alpha avec la meilleure évaluation trouvée jusqu'ici.
     if alpha < stand_pat_eval:
         alpha = stand_pat_eval
 
-    # On ne génère QUE les coups de capture pour cette position.
-    capture_moves = get_capture_moves(board, color_player)
+    # --- NOUVELLE LOGIQUE POUR OBTENIR ET PARCOURIR LES COUPS ---
+    # 1. Obtenir les coups de capture possibles
+    capture_moves_dict = get_capture_moves(board, color_player)
+    
+    # 2. Transformer le dictionnaire en une liste plate de descriptions de coups
+    capture_moves_list = []
+    for piece, moves in capture_moves_dict.items():
+        for move, skipped in moves.items():
+            capture_moves_list.append((piece, move, skipped))
+    
+    # 3. Parcourir les descriptions de coups (comme dans NegaMax)
+    for move_data in capture_moves_list:
+        piece, (end_row, end_col), skipped_pieces = move_data
+        start_row, start_col = piece.row, piece.col
 
-    # On applique la règle de la prise maximale aussi dans la Q-Search
-    capture_moves = extract_max_jumps(capture_moves)
-
-    for move_board in capture_moves.keys():
-        # On fait un appel récursif pour la position après la capture
-        score = -quiescenceSearch(move_board, -beta, -alpha, CREAM if color_player == BLACK else BLACK)
-
-        # Si le score est meilleur que beta, on a trouvé une réfutation et on peut couper.
+        # --- FAIRE LE COUP (MAKE MOVE) ---
+        removed = board.remove_and_get_skipped(skipped_pieces)
+        was_promoted = board.make_move(piece, end_row, end_col)
+        
+        # Appel récursif (on passe le même objet 'board')
+        score = -quiescenceSearch(board, -beta, -alpha, CREAM if color_player == BLACK else BLACK, profiler)
+        
+        # --- DÉFAIRE LE COUP (UNDO MOVE) ---
+        board.undo_move(piece, start_row, start_col, was_promoted)
+        board.restore_skipped(removed)
+        
         if score >= beta:
             return beta
         
-        # Si on a trouvé un meilleur coup, on met à jour alpha.
         if score > alpha:
             alpha = score
-
+            
     return alpha
 
-#*********** Negamax with killer moves and ordering moves optimizations  ***********#
 def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, profiler):
-
-    # === PROFILER: Incrémente le nombre de nœuds visités ===
     profiler.increment_nodes()
 
     if position.winner(game.turn) is not None:
-        return position.evaluate(color_player), position # Le jeu est fini, retourne l'évaluation
+        return position.evaluate(color_player), None
 
     if depth == 0:
-        # La recherche principale est terminée, on lance la recherche de quiétude
-        # pour s'assurer que la position est "calme".
-        q_eval = quiescenceSearch(position, alpha, beta, color_player)
-        return q_eval, position
+        # === CORRECTION : On passe le profiler à la Q-Search ===
+        q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler)
+        return q_eval, None
     
-    best_move = None
-    moves = get_all_moves(position, color_player)
+    best_move_data = None
+    possible_moves = get_possible_moves(position, color_player)
+    
+    # (Logique de tri des mouvements)
 
-    moves_list = list(get_all_moves(position, color_player).keys())
-    # Sort moves based on history score in descending order
-    moves_list.sort(key=lambda move: history_table.get(move, 0), reverse=True)
+    for move_data in possible_moves:
+        piece, (end_row, end_col), skipped_pieces = move_data
+        start_row, start_col = piece.row, piece.col
 
-    # Prioritize the killer move by moving it to the front
-    if depth in killer_moves:
-        killer_move = killer_moves[depth]
-        if killer_move in moves_list:
-            moves_list.remove(killer_move)
-            moves_list.insert(0, killer_move)
-
-    for move in moves:
-        evaluation = -NegaMax(move, depth-1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, game, killer_moves, profiler)[0]
+        # --- FAIRE LE COUP (MAKE MOVE) ---
+        removed = position.remove_and_get_skipped(skipped_pieces)
+        was_promoted = position.make_move(piece, end_row, end_col)
+        
+        # Appel récursif
+        evaluation = -NegaMax(position, depth - 1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, game, killer_moves, profiler)[0]
+        
+        # --- DÉFAIRE LE COUP (UNDO MOVE) ---
+        position.undo_move(piece, start_row, start_col, was_promoted)
+        position.restore_skipped(removed)
         
         if evaluation > alpha:
-            best_move = move
             alpha = evaluation
+            best_move_data = move_data
             
             if alpha >= beta:
-                #update_history(best_move, depth)  
-                # Add a check to ensure best_move is not None
-                # === PROFILER: Incrémente le compteur de coupures ===
                 profiler.increment_cutoffs()
-                if best_move is not None:
-                    if depth not in killer_moves:
-                        killer_moves[depth] = best_move
-                    # (logic to store one or two killers)
-                break  # Coupez l'arbre
+                # (Logique Killer moves)
+                break
+    
+    return alpha, best_move_data
 
-    # Enregistrer le meilleur mouvement dans la table des killer moves
-    if depth not in killer_moves:
-        killer_moves[depth] = best_move
-    else:
-        if best_move != killer_moves[depth]:
-            killer_moves[depth] = best_move
+def get_possible_moves(board, color):
+    """
+    Génère une liste de tous les coups possibles pour une couleur donnée.
+    Ne retourne pas de nouveaux plateaux, mais des tuples décrivant les coups.
+    Format du tuple : (piece, (end_row, end_col), skipped_pieces)
+    """
+    moves_data = []
+    
+    # D'abord, vérifier s'il y a des captures obligatoires
+    capture_moves = get_capture_moves(board, color)
+    if capture_moves:
+        # Si des captures existent, ce sont les seuls coups autorisés
+        for piece, moves in capture_moves.items():
+            for move, skipped in moves.items():
+                moves_data.append((piece, move, skipped))
+        return moves_data
 
-    return alpha, best_move
+    # S'il n'y a pas de captures, générer les mouvements simples
+    for piece in board.get_all_pieces(color):
+        valid_moves = board.get_valid_moves(piece)
+        for move, skipped in valid_moves.items():
+            # Dans ce cas, 'skipped' sera une liste vide
+            moves_data.append((piece, move, skipped))
+            
+    return moves_data
 
-
-def get_all_moves(board, color):
-    moves = {}
+def get_capture_moves(board, color):
+    """
+    Retourne uniquement les coups de capture possibles, groupés par pièce.
+    Ceci est essentiel pour la règle de la prise obligatoire.
+    """
+    capture_moves = {}
+    max_skipped_len = 0
 
     for piece in board.get_all_pieces(color):
         valid_moves = board.get_valid_moves(piece)
-        #print(valid_moves)
-        for move, skip in valid_moves.items():
-            temp_board = deepcopy(board)
-            temp_piece = temp_board.get_piece(piece.row, piece.col)
-            #print(temp_board)
-            new_board = simulate_move(temp_piece, move, temp_board, skip)
-            #print(skip)
-            moves[new_board] = skip
-    #print(moves)
-    moves = extract_max_jumps(moves)
+        piece_captures = {}
+        for move, skipped in valid_moves.items():
+            if skipped:
+                piece_captures[move] = skipped
+                if len(skipped) > max_skipped_len:
+                    max_skipped_len = len(skipped)
+        
+        if piece_captures:
+            capture_moves[piece] = piece_captures
     
-    return moves
+    if not capture_moves:
+        return {}
+
+    # Filtrer pour ne garder que les coups qui capturent le maximum de pièces
+    final_captures = {}
+    for piece, moves in capture_moves.items():
+        max_len_moves = {move: skipped for move, skipped in moves.items() if len(skipped) == max_skipped_len}
+        if max_len_moves:
+            final_captures[piece] = max_len_moves
+            
+    return final_captures
 
 def extract_max_jumps(moves):
     if moves:

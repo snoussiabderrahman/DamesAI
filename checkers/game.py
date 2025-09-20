@@ -105,8 +105,22 @@ class Game:
     def get_board(self):
         return self.board
     
-    def ai_move(self, board):
-        self.board = board
+    def ai_move(self, move_data):
+        """Exécute un coup retourné par l'algorithme IA."""
+        if move_data is None:
+            print("AI has no moves.")
+            return
+
+        piece, (end_row, end_col), skipped_pieces = move_data
+        
+        # Récupère la pièce la plus à jour depuis le plateau principal du jeu
+        current_piece = self.board.get_piece(piece.row, piece.col)
+        if current_piece == 0 or current_piece.color != self.turn:
+            # Sécurité si l'IA retourne un coup invalide
+            return
+
+        self.board.remove(skipped_pieces)
+        self.board.move(current_piece, end_row, end_col)
         self.change_turn()
 
     def add_number_moves(self, color):
