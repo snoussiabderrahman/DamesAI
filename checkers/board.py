@@ -1,6 +1,7 @@
 import pygame
 from .constants import BROWN, ROWS, CREAM, SQUARE_SIZE, COLS, BLACK
 from .piece import Piece
+from minimax.algorithm import zobrist_table, zobrist_turn_black
 
 class Board:
      
@@ -9,6 +10,34 @@ class Board:
         self.cream_left = self.black_left = 12
         self.cream_kings = self.black_kings = 0
         self.create_board()
+        # === Calculer le hash de la position initiale ===
+        self.zobrist_hash = self.calculate_initial_hash()
+    
+    def calculate_initial_hash(self):
+        """Calcule le hash Zobrist pour la position de départ."""
+        h = 0
+        for r in range(ROWS):
+            for c in range(COLS):
+                piece = self.board[r][c]
+                if piece != 0:
+                    h ^= zobrist_table[(piece.color, piece.king, r, c)]
+        return h
+    
+    # --- NOUVELLES FONCTIONS D'AIDE POUR LA MISE À JOUR DU HASH ---
+
+    def update_hash_move(self, piece, old_row, old_col, new_row, new_col):
+        """Met à jour le hash pour un simple mouvement."""
+        self.zobrist_hash ^= zobrist_table[(piece.color, piece.king, old_row, old_col)] # Retire l'ancienne pos
+        self.zobrist_hash ^= zobrist_table[(piece.color, piece.king, new_row, new_col)] # Ajoute la nouvelle pos
+
+    def update_hash_promotion(self, piece):
+        """Met à jour le hash quand une pièce change entre pion et dame."""
+        self.zobrist_hash ^= zobrist_table[(piece.color, False, piece.row, piece.col)] # XOR out l'état pion
+        self.zobrist_hash ^= zobrist_table[(piece.color, True, piece.row, piece.col)]  # XOR in l'état dame
+
+    def update_hash_piece(self, piece):
+        """Met à jour le hash pour une pièce ajoutée ou retirée."""
+        self.zobrist_hash ^= zobrist_table[(piece.color, piece.king, piece.row, piece.col)]
     
     def draw_squares(self, win):
         win.fill(BROWN)
@@ -280,11 +309,16 @@ class Board:
         # 1. Déplacer la pièce sur le plateau
         self.board[start_row][start_col] = 0
         self.board[end_row][end_col] = piece
+
+        # === HACHAGE : Met à jour pour le mouvement ===
+        self.update_hash_move(piece, start_row, start_col, end_row, end_col)
         piece.move(end_row, end_col)
 
         # 2. Gérer la promotion en roi
         was_promoted = False
         if (end_row == ROWS - 1 or end_row == 0) and not piece.king:
+            # === HACHAGE : Met à jour pour la promotion AVANT de changer l'état ===
+            self.update_hash_promotion(piece)
             piece.make_king()
             was_promoted = True
             if piece.color == BLACK:
@@ -300,6 +334,8 @@ class Board:
         
         # 1. Annuler la promotion si nécessaire
         if was_promoted:
+            # === HACHAGE : Annule la promotion AVANT de changer l'état ===
+            self.update_hash_promotion(piece)
             piece.king = False
             if piece.color == BLACK:
                 self.black_kings -= 1
@@ -309,6 +345,9 @@ class Board:
         # 2. Replacer la pièce à sa position d'origine
         self.board[start_row][start_col] = piece
         self.board[current_row][current_col] = 0
+
+        # === HACHAGE : Annule le mouvement ===
+        self.update_hash_move(piece, current_row, current_col, start_row, start_col)
         piece.move(start_row, start_col)
 
     def remove_and_get_skipped(self, skipped_pieces):

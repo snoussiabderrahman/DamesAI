@@ -4,6 +4,7 @@ from checkers.game import Game
 from minimax.algorithm import NegaMax
 from minimax.profiler import AIProfiler
 import time
+from minimax.algorithm import NegaMax, transposition_table
 
 FPS = 60
 SEARCH_DEPTH = 8
@@ -33,6 +34,9 @@ def main():
 
     
         if game.turn == BLACK:
+            # === NOUVEAU : Vider la TT avant chaque nouvelle recherche ===
+            transposition_table.clear()
+
             # 1. Réinitialisez et démarrez le chronomètre
             profiler.reset()
             profiler.start_timer()
@@ -42,9 +46,12 @@ def main():
             
             # 3. Arrêtez le chronomètre
             profiler.stop_timer()
+            
+            # Enregistre la taille de la TT après la recherche
+            profiler.set_tt_size(len(transposition_table))
 
             # 4. Affichez les résultats
-            profiler.display_results(SEARCH_DEPTH, value)
+            profiler.display_results(SEARCH_DEPTH, value, best_move_data)
 
             # Si un mouvement a été trouvé, exécutez-le
             if best_move_data:

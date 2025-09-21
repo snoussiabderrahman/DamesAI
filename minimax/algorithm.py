@@ -1,8 +1,25 @@
 from checkers.constants import BLACK, CREAM, ROWS, COLS
 import pygame
+import random
 
+# --- 1. INITIALISATION DU HACHAGE ZOBRIST ET DES STRUCTURES D'OPTIMISATION ---
 
+# Table de nombres aléatoires pour le hachage
+zobrist_table = {}
+# Clés pour chaque type de pièce à chaque position
+for row in range(ROWS):
+    for col in range(COLS):
+        for piece_color in [BLACK, CREAM]:
+            # Clé pour un pion (man)
+            zobrist_table[(piece_color, False, row, col)] = random.getrandbits(64)
+            # Clé pour une dame (king)
+            zobrist_table[(piece_color, True, row, col)] = random.getrandbits(64)
 
+# Clé unique pour indiquer que c'est au tour du joueur NOIR (BLACK) de jouer
+zobrist_turn_black = random.getrandbits(64)
+
+# La Table de Transposition (TT) qui stockera les résultats
+transposition_table = {}
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
 def quiescenceSearch(board, alpha, beta, color_player, profiler):
@@ -54,6 +71,27 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     return alpha
 
 def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, profiler):
+    alpha_orig = alpha
+    # === UTILISATION DU HACHAGE DANS NEGAMAX (TT LOOKUP) ===
+    # Le hash complet inclut le tour du joueur
+    current_hash = position.zobrist_hash
+    if color_player == BLACK:
+        current_hash ^= zobrist_turn_black
+
+    tt_entry = transposition_table.get(current_hash)
+    if tt_entry and tt_entry['depth'] >= depth:
+        profiler.increment_tt_hits() 
+        
+        if tt_entry['flag'] == 'EXACT':
+            return tt_entry['score'], tt_entry['best_move']
+        elif tt_entry['flag'] == 'LOWERBOUND':
+            alpha = max(alpha, tt_entry['score'])
+        elif tt_entry['flag'] == 'UPPERBOUND':
+            beta = min(beta, tt_entry['score'])
+        
+        if alpha >= beta:
+            return tt_entry['score'], tt_entry['best_move']
+        
     profiler.increment_nodes()
 
     if position.winner(game.turn) is not None:
@@ -91,6 +129,22 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
                 profiler.increment_cutoffs()
                 # (Logique Killer moves)
                 break
+
+        # === SAUVEGARDE DANS LA TABLE DE TRANSPOSITION (TT STORE) ===
+        flag = ''
+        if alpha <= alpha_orig:
+            flag = 'UPPERBOUND'
+        elif alpha >= beta:
+            flag = 'LOWERBOUND'
+        else:
+            flag = 'EXACT'
+
+        transposition_table[current_hash] = {
+            'score': alpha,
+            'depth': depth,
+            'flag': flag,
+            'best_move': best_move_data
+        }
     
     return alpha, best_move_data
 
