@@ -44,7 +44,7 @@ def main():
             profiler.stop_timer()
 
             # 4. Affichez les résultats
-            profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+            profiler.display_results(SEARCH_DEPTH, value)
 
             # Si un mouvement a été trouvé, exécutez-le
             if best_move_data:

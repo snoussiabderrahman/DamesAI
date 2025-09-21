@@ -33,7 +33,7 @@ class AIProfiler:
         """Incrémente le nombre de coupures alpha-bêta."""
         self.cutoffs += 1
 
-    def display_results(self, depth, best_score, best_move):
+    def display_results(self, depth, best_score):
         """Affiche les résultats de la recherche dans un tableau bien structuré."""
         
         # Calcule les nœuds par seconde pour mesurer la vitesse pure de la recherche.
@@ -51,5 +51,4 @@ class AIProfiler:
         print(f"{'Alpha-Beta Cutoffs':<25} | {self.cutoffs:,}")
         print(f"{'Transposition Hits':<25} | {self.tt_hits:,} (non implémenté)")
         print(f"{'Best Score Found':<25} | {best_score:.4f}")
-        print(f"{'Best Move Found':<25} | {'(Move executed on board)'}")
         print("="*50 + "\n")

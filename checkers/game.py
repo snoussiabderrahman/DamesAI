@@ -56,53 +56,62 @@ class Game:
         return final_mandatory_moves
 
     def select(self, row, col):
-        # Si une pièce est déjà sélectionnée, essayer de la déplacer
+        # Étape 1 : Gérer la tentative de DÉPLACEMENT si une pièce est déjà sélectionnée.
         if self.selected:
-            result = self._move(row, col)
-            # Si le mouvement n'est pas valide, désélectionner et recommencer la sélection
-            if not result:
+            # Tente d'effectuer le mouvement. _move retourne True si c'est réussi.
+            if self._move(row, col):
+                # Le mouvement a réussi, la fonction change_turn() s'occupera de tout.
+                return True
+            else:
+                # Le mouvement a échoué (clic sur une case invalide).
+                # CORRECTION : On désélectionne la pièce et on efface ses mouvements.
                 self.selected = None
-                self.select(row, col)
-            return True # Terminer l'action après une tentative de mouvement
+                self.valid_moves = {}
+                # On ne quitte pas ! On continue pour voir si ce nouveau clic
+                # correspond à une NOUVELLE sélection de pièce.
+        
+        # À ce stade, soit aucune pièce n'était sélectionnée, soit une tentative de
+        # mouvement a échoué et nous traitons le clic comme une nouvelle sélection.
 
-        # 1. Obtenir la liste globale des coups de capture obligatoires
+        # Étape 2 : Gérer la tentative de SÉLECTION d'une nouvelle pièce.
+        piece = self.board.get_piece(row, col)
+
+        # On ne peut sélectionner que les pièces de sa propre couleur.
+        if piece == 0 or piece.color != self.turn:
+            # Le clic est sur une case vide ou une pièce adverse. On s'assure que tout est propre.
+            self.selected = None
+            self.valid_moves = {}
+            return False
+
+        # Le clic est sur une pièce valide du joueur. Appliquons la logique du jeu.
         mandatory_moves = self._get_all_mandatory_moves_for_turn(self.turn)
 
         if mandatory_moves:
-            # --- CAS 1 : IL Y A DES CAPTURES OBLIGATOIRES ---
-            piece = self.board.get_piece(row, col)
-            if piece == 0 or piece.color != self.turn:
-                return False # Clic sur une case vide ou une pièce adverse
-
-            # Vérifier si la pièce sélectionnée fait partie des coups obligatoires
-            is_piece_valid = any(p == piece for p, m, s in mandatory_moves)
-            
-            if is_piece_valid:
+            # Cas 1 : Il y a des captures obligatoires.
+            is_piece_mandatory = any(p == piece for p, m, s in mandatory_moves)
+            if is_piece_mandatory:
+                # Cette pièce PEUT effectuer la capture obligatoire. On la sélectionne.
                 self.selected = piece
-                # Construire le dictionnaire de mouvements valides UNIQUEMENT à partir
-                # des coups obligatoires pour cette pièce spécifique.
-                valid_jumps = {
-                    move: skipped 
-                    for p, move, skipped in mandatory_moves 
-                    if p == self.selected
-                }
-                self.valid_moves = valid_jumps
+                self.valid_moves = {m: s for p, m, s in mandatory_moves if p == piece}
                 return True
             else:
-                # Le joueur a cliqué sur une de ses pièces, mais elle ne peut pas
-                # effectuer la capture maximale. C'est un choix invalide.
-                print("Invalid selection: You must choose a piece that can perform the maximum capture.")
+                # Cette pièce ne peut pas. La sélection est invalide. On efface tout.
+                self.selected = None
+                self.valid_moves = {}
                 return False
         else:
-            # --- CAS 2 : PAS DE CAPTURES OBLIGATOIRES ---
-            # Comportement normal : le joueur peut sélectionner n'importe quelle pièce
-            piece = self.board.get_piece(row, col)
-            if piece != 0 and piece.color == self.turn:
+            # Cas 2 : Pas de captures obligatoires.
+            # On peut sélectionner n'importe quelle pièce qui a des mouvements.
+            possible_moves = self.board.get_valid_moves(piece)
+            if possible_moves:
                 self.selected = piece
-                self.valid_moves = self.board.get_valid_moves(piece)
+                self.valid_moves = possible_moves
                 return True
-
-        return False
+            else:
+                # La pièce n'a aucun mouvement possible. Sélection invalide.
+                self.selected = None
+                self.valid_moves = {}
+                return False
 
     def check_mandatory_moves(self, color):
         mandatory_moves = {}
