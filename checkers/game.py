@@ -9,7 +9,7 @@ class Game:
         self.win = win
         # === NOUVEAU : Variables pour gérer l'état de l'animation ===
         self.animation_data = None  # Stockera les infos du coup à animer
-        self.animation_speed = 4  # Vitesse de l'animation (plus élevé = plus rapide)
+        self.animation_speed = 30  # Vitesse de l'animation (plus élevé = plus rapide)
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
