@@ -9,7 +9,7 @@ class Game:
         self.win = win
         # === NOUVEAU : Variables pour gérer l'état de l'animation ===
         self.animation_data = None  # Stockera les infos du coup à animer
-        self.animation_speed = 50  # Vitesse de l'animation (plus élevé = plus rapide)
+        self.animation_speed = 40  # Vitesse de l'animation (plus élevé = plus rapide)
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -197,32 +197,23 @@ class Game:
     def select(self, row, col):
         # Étape 1 : Gérer la tentative de DÉPLACEMENT si une pièce est déjà sélectionnée.
         if self.selected:
-            # Tente d'effectuer le mouvement. _move retourne True si c'est réussi.
             if self._move(row, col):
-                # Le mouvement a réussi, la fonction change_turn() s'occupera de tout.
                 return True
             else:
-                # Le mouvement a échoué (clic sur une case invalide).
-                # CORRECTION : On désélectionne la pièce et on efface ses mouvements.
+                # Le mouvement a échoué. On désélectionne la pièce et on efface ses mouvements.
                 self.selected = None
                 self.valid_moves = {}
-                # On ne quitte pas ! On continue pour voir si ce nouveau clic
-                # correspond à une NOUVELLE sélection de pièce.
+                # On continue pour voir si ce nouveau clic correspond à une NOUVELLE sélection.
         
-        # À ce stade, soit aucune pièce n'était sélectionnée, soit une tentative de
-        # mouvement a échoué et nous traitons le clic comme une nouvelle sélection.
-
         # Étape 2 : Gérer la tentative de SÉLECTION d'une nouvelle pièce.
         piece = self.board.get_piece(row, col)
 
-        # On ne peut sélectionner que les pièces de sa propre couleur.
         if piece == 0 or piece.color != self.turn:
-            # Le clic est sur une case vide ou une pièce adverse. On s'assure que tout est propre.
             self.selected = None
             self.valid_moves = {}
             return False
 
-        # Le clic est sur une pièce valide du joueur. Appliquons la logique du jeu.
+        # --- LOGIQUE DE FILTRAGE GLOBAL (LA PLUS IMPORTANTE) ---
         mandatory_moves = self._get_all_mandatory_moves_for_turn(self.turn)
 
         if mandatory_moves:
@@ -235,19 +226,18 @@ class Game:
                 return True
             else:
                 # Cette pièce ne peut pas. La sélection est invalide. On efface tout.
+                print("Invalid move: another piece must perform a longer capture.")
                 self.selected = None
                 self.valid_moves = {}
                 return False
         else:
             # Cas 2 : Pas de captures obligatoires.
-            # On peut sélectionner n'importe quelle pièce qui a des mouvements.
             possible_moves = self.board.get_valid_moves(piece)
             if possible_moves:
                 self.selected = piece
                 self.valid_moves = possible_moves
                 return True
             else:
-                # La pièce n'a aucun mouvement possible. Sélection invalide.
                 self.selected = None
                 self.valid_moves = {}
                 return False
@@ -268,10 +258,23 @@ class Game:
     def _move(self, row, col):
         piece = self.board.get_piece(row, col)
         if self.selected and piece == 0 and (row, col) in self.valid_moves:
+            # --- CORRECTION DU CRASH ---
+            # On extrait la liste des pièces sautées, que ce soit une liste ou un dictionnaire
+            skipped_details = self.valid_moves[(row, col)]
+            
+            final_skipped_list = []
+            if isinstance(skipped_details, dict):
+                final_skipped_list = skipped_details.get('skipped', [])
+            else:
+                final_skipped_list = skipped_details
+            # ---------------------------
+
             self.board.move(self.selected, row, col)
-            skipped = self.valid_moves[(row, col)]
-            if skipped:
-                self.board.remove(skipped)
+            
+            if final_skipped_list:
+                # On utilise la liste "propre" pour retirer les pièces
+                self.board.remove(final_skipped_list)
+            
             self.change_turn()
         else:
             return False

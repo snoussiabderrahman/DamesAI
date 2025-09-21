@@ -40,20 +40,20 @@ def main():
             transposition_table.clear()
 
             # 1. Réinitialisez et démarrez le chronomètre
-            profiler.reset()
-            profiler.start_timer()
+            #profiler.reset()
+            #profiler.start_timer()#
 
             # 2. Appelez NegaMax en passant l'objet profiler
             value, best_move_data = NegaMax(game.get_board(), SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), game, killer_moves, profiler)
             
             # 3. Arrêtez le chronomètre
-            profiler.stop_timer()
+            #profiler.stop_timer()
             
             # Enregistre la taille de la TT après la recherche
-            profiler.set_tt_size(len(transposition_table))
+            #profiler.set_tt_size(len(transposition_table))
 
             # 4. Affichez les résultats
-            profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+            #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
 
             # Si un mouvement a été trouvé, exécutez-le
             if best_move_data:
