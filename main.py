@@ -5,6 +5,8 @@ from minimax.algorithm import NegaMax
 from minimax.profiler import AIProfiler
 import time
 from minimax.algorithm import NegaMax, transposition_table
+import os
+import sys
 
 FPS = 60
 SEARCH_DEPTH = 8
@@ -73,5 +75,15 @@ def main():
         time.sleep(.1)
     
     pygame.quit()
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 main()
