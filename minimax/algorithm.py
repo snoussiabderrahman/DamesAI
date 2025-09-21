@@ -22,6 +22,8 @@ zobrist_turn_black = random.getrandbits(64)
 transposition_table = {}
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
+# minimax/algorithm.py
+
 def quiescenceSearch(board, alpha, beta, color_player, profiler):
     """
     Recherche de quiétude qui utilise maintenant le pattern Make/Undo.
@@ -37,22 +39,31 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     if alpha < stand_pat_eval:
         alpha = stand_pat_eval
 
-    # 1. Obtenir les coups de capture possibles
     capture_moves_dict = get_capture_moves(board, color_player)
     
-    # 2. Transformer le dictionnaire en une liste plate de descriptions de coups
     capture_moves_list = []
     for piece, moves in capture_moves_dict.items():
-        for move, skipped in moves.items():
-            capture_moves_list.append((piece, move, skipped))
+        for move, details in moves.items():
+            capture_moves_list.append((piece, move, details))
     
-    # 3. Parcourir les descriptions de coups (comme dans NegaMax)
     for move_data in capture_moves_list:
+        # La variable est 'skipped_pieces' ici, car elle est décomposée de move_data
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
+        # === CORRECTION : Extraire la liste des pièces sautées (comme dans NegaMax) ===
+        final_skipped_list = []
+        if isinstance(skipped_pieces, dict):
+            # Si c'est un dictionnaire (saut de roi), on prend la liste depuis la clé 'skipped'
+            final_skipped_list = skipped_pieces['skipped']
+        else:
+            # Sinon, c'est déjà la bonne liste (saut de pion)
+            final_skipped_list = skipped_pieces
+        # ===========================================================================
+
         # --- FAIRE LE COUP (MAKE MOVE) ---
-        removed = board.remove_and_get_skipped(skipped_pieces)
+        # On utilise maintenant la liste nettoyée 'final_skipped_list'
+        removed = board.remove_and_get_skipped(final_skipped_list)
         was_promoted = board.make_move(piece, end_row, end_col)
         
         # Appel récursif (on passe le même objet 'board')
@@ -71,27 +82,24 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     return alpha
 
 def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, profiler):
+    # --- Début de la fonction (recherche TT, etc.) ---
     alpha_orig = alpha
-    # === UTILISATION DU HACHAGE DANS NEGAMAX (TT LOOKUP) ===
-    # Le hash complet inclut le tour du joueur
     current_hash = position.zobrist_hash
     if color_player == BLACK:
         current_hash ^= zobrist_turn_black
-
+    
     tt_entry = transposition_table.get(current_hash)
     if tt_entry and tt_entry['depth'] >= depth:
-        profiler.increment_tt_hits() 
-        
+        profiler.increment_tt_hits()
         if tt_entry['flag'] == 'EXACT':
             return tt_entry['score'], tt_entry['best_move']
         elif tt_entry['flag'] == 'LOWERBOUND':
             alpha = max(alpha, tt_entry['score'])
         elif tt_entry['flag'] == 'UPPERBOUND':
             beta = min(beta, tt_entry['score'])
-        
         if alpha >= beta:
             return tt_entry['score'], tt_entry['best_move']
-        
+
     profiler.increment_nodes()
 
     if position.winner(game.turn) is not None:
@@ -104,14 +112,26 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
     best_move_data = None
     possible_moves = get_possible_moves(position, color_player)
     
-    # (Logique de tri des mouvements)
-
+    # --- Boucle de recherche ---
     for move_data in possible_moves:
+        # La variable est bien 'skipped_pieces' ici, comme dans votre code.
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
+        # === CORRECTION AVEC LE BON NOM DE VARIABLE ===
+        # On vérifie la variable 'skipped_pieces'
+        final_skipped_list = []
+        if isinstance(skipped_pieces, dict):
+            # Si c'est un dictionnaire, on prend la liste depuis la clé 'skipped'
+            final_skipped_list = skipped_pieces['skipped']
+        else:
+            # Sinon, c'est déjà la bonne liste (pour les pions ou les coups simples)
+            final_skipped_list = skipped_pieces
+        # =================================================
+
         # --- FAIRE LE COUP (MAKE MOVE) ---
-        removed = position.remove_and_get_skipped(skipped_pieces)
+        # On utilise maintenant la liste nettoyée 'final_skipped_list'
+        removed = position.remove_and_get_skipped(final_skipped_list)
         was_promoted = position.make_move(piece, end_row, end_col)
         
         # Appel récursif
@@ -127,69 +147,72 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
             
             if alpha >= beta:
                 profiler.increment_cutoffs()
-                # (Logique Killer moves)
                 break
+    
+    # --- Fin de la fonction (sauvegarde TT) ---
+    flag = ''
+    if alpha <= alpha_orig:
+        flag = 'UPPERBOUND'
+    elif alpha >= beta:
+        flag = 'LOWERBOUND'
+    else:
+        flag = 'EXACT'
 
-        # === SAUVEGARDE DANS LA TABLE DE TRANSPOSITION (TT STORE) ===
-        flag = ''
-        if alpha <= alpha_orig:
-            flag = 'UPPERBOUND'
-        elif alpha >= beta:
-            flag = 'LOWERBOUND'
-        else:
-            flag = 'EXACT'
-
-        transposition_table[current_hash] = {
-            'score': alpha,
-            'depth': depth,
-            'flag': flag,
-            'best_move': best_move_data
-        }
+    transposition_table[current_hash] = {
+        'score': alpha, 'depth': depth, 'flag': flag, 'best_move': best_move_data
+    }
     
     return alpha, best_move_data
 
 def get_possible_moves(board, color):
     """
-    Génère une liste de tous les coups possibles pour une couleur donnée.
-    Ne retourne pas de nouveaux plateaux, mais des tuples décrivant les coups.
-    Format du tuple : (piece, (end_row, end_col), skipped_pieces)
+    Génère une liste de tous les coups possibles. Gère maintenant la nouvelle
+    structure de données pour les sauts du roi.
     """
     moves_data = []
-    
-    # D'abord, vérifier s'il y a des captures obligatoires
     capture_moves = get_capture_moves(board, color)
+
     if capture_moves:
-        # Si des captures existent, ce sont les seuls coups autorisés
         for piece, moves in capture_moves.items():
-            for move, skipped in moves.items():
-                moves_data.append((piece, move, skipped))
+            for move, details in moves.items():
+                # === MODIFICATION : 'details' est maintenant la structure complète ===
+                moves_data.append((piece, move, details))
         return moves_data
 
-    # S'il n'y a pas de captures, générer les mouvements simples
+    # La logique pour les mouvements simples reste la même
     for piece in board.get_all_pieces(color):
         valid_moves = board.get_valid_moves(piece)
         for move, skipped in valid_moves.items():
-            # Dans ce cas, 'skipped' sera une liste vide
-            moves_data.append((piece, move, skipped))
+            moves_data.append((piece, move, skipped)) # Ici, 'skipped' est une liste vide
             
     return moves_data
 
 def get_capture_moves(board, color):
     """
-    Retourne uniquement les coups de capture possibles, groupés par pièce.
-    Ceci est essentiel pour la règle de la prise obligatoire.
+    Retourne uniquement les coups de capture possibles, en respectant la capture maximale.
+    Cette version gère correctement les sauts de pion (liste) et de roi (dictionnaire).
     """
     capture_moves = {}
     max_skipped_len = 0
 
+    # Étape 1 : Collecter toutes les captures possibles
     for piece in board.get_all_pieces(color):
         valid_moves = board.get_valid_moves(piece)
         piece_captures = {}
-        for move, skipped in valid_moves.items():
-            if skipped:
-                piece_captures[move] = skipped
-                if len(skipped) > max_skipped_len:
-                    max_skipped_len = len(skipped)
+        for move, details in valid_moves.items():
+            # 'details' est soit une LISTE (pion) soit un DICTIONNAIRE (roi)
+            
+            # --- NOUVELLE LOGIQUE POUR TROUVER LA LISTE DES PIÈCES SAUTÉES ---
+            skipped_list = []
+            if isinstance(details, dict):
+                skipped_list = details.get('skipped', [])
+            else:
+                skipped_list = details
+
+            if skipped_list: # S'assurer que c'est bien une capture
+                piece_captures[move] = details # On stocke la structure de données ORIGINALE
+                if len(skipped_list) > max_skipped_len:
+                    max_skipped_len = len(skipped_list)
         
         if piece_captures:
             capture_moves[piece] = piece_captures
@@ -197,10 +220,16 @@ def get_capture_moves(board, color):
     if not capture_moves:
         return {}
 
-    # Filtrer pour ne garder que les coups qui capturent le maximum de pièces
+    # Étape 2 : Filtrer pour ne garder que les captures de longueur maximale
     final_captures = {}
     for piece, moves in capture_moves.items():
-        max_len_moves = {move: skipped for move, skipped in moves.items() if len(skipped) == max_skipped_len}
+        max_len_moves = {}
+        for move, details in moves.items():
+            # --- NOUVELLE LOGIQUE POUR VÉRIFIER LA LONGUEUR ---
+            skipped_list = details['skipped'] if isinstance(details, dict) else details
+            if len(skipped_list) == max_skipped_len:
+                max_len_moves[move] = details # On garde la structure ORIGINALE
+        
         if max_len_moves:
             final_captures[piece] = max_len_moves
             

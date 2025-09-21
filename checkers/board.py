@@ -43,7 +43,6 @@ class Board:
         return h
     
     # --- NOUVELLES FONCTIONS D'AIDE POUR LA MISE À JOUR DU HASH ---
-
     def update_hash_move(self, piece, old_row, old_col, new_row, new_col):
         """Met à jour le hash pour un simple mouvement."""
         self.zobrist_hash ^= zobrist_table[(piece.color, piece.king, old_row, old_col)] # Retire l'ancienne pos
@@ -96,31 +95,34 @@ class Board:
     
     def draw(self, win, animation_data=None):
         """
-        La méthode de dessin principale, maintenant consciente de l'animation.
+        La méthode de dessin principale, gère maintenant une liste de pièces à cacher.
         """
         self.draw_squares(win)
         
         animating_piece = None
+        visually_removed = []
         if animation_data:
             animating_piece = animation_data['piece']
+            visually_removed = animation_data.get('visually_removed', [])
 
         for row in range(ROWS):
             for col in range(COLS):
                 piece = self.board[row][col]
                 if piece != 0:
                     # On ne dessine pas la pièce qui est en cours d'animation
-                    if piece == animating_piece:
+                    # NI les pièces qui ont été capturées pendant l'animation
+                    if piece == animating_piece or piece in visually_removed:
                         continue
                     piece.draw(win)
 
-        # La pièce animée est dessinée séparément par la classe Game après cet appel
+        # La pièce animée est toujours dessinée séparément par-dessus le reste
         if animating_piece:
             # On utilise les coordonnées interpolées de l'animation
             pygame.draw.circle(win, GREY, (animation_data['current_x'], animation_data['current_y']), SQUARE_SIZE//2 - 15 + 2)
             pygame.draw.circle(win, animating_piece.color, (animation_data['current_x'], animation_data['current_y']), SQUARE_SIZE//2 - 15)
             if animating_piece.king:
                 win.blit(CROWN, (animation_data['current_x'] - CROWN.get_width()//2, animation_data['current_y'] - CROWN.get_height()//2))
-
+    
     def print_board(self):
         for row in range(ROWS):
             for col in range(COLS):
@@ -185,50 +187,50 @@ class Board:
 
     def _find_king_jumps(self, row, col, color, skipped):
         """
-        Fonction récursive qui ne trouve QUE les séquences de sauts pour un roi.
-        Elle ne retourne que les points d'atterrissage finaux de chaque séquence.
+        Fonction récursive qui trouve les séquences de sauts pour un roi.
+        Retourne maintenant un dictionnaire contenant les pièces sautées ET le chemin.
         """
         jumps = {}
         
-        # Itérer à travers les 4 directions diagonales
         for dr, dc in [(-1, -1), (-1, 1), (1, -1), (1, 1)]:
             opponent_found = None
             
-            # Scanner le long d'une diagonale
             for i in range(1, ROWS):
                 r, c = row + i * dr, col + i * dc
 
                 if not (0 <= r < ROWS and 0 <= c < COLS):
-                    break # Hors du plateau
+                    break
 
                 current_piece = self.board[r][c]
 
                 if opponent_found:
-                    # Si on a déjà sauté une pièce, on cherche maintenant une case vide
                     if current_piece == 0:
-                        # Case d'atterrissage trouvée. Maintenant, cherchez des sauts supplémentaires à partir d'ici.
                         new_skipped = skipped + [opponent_found]
+                        # === MODIFICATION : On transmet le chemin via la récursion ===
                         continuations = self._find_king_jumps(r, c, color, new_skipped)
                         
                         if not continuations:
-                            # Si pas d'autres sauts, c'est un point d'atterrissage final.
-                            jumps[(r, c)] = new_skipped
+                            # Cas de base : c'est la fin de la séquence
+                            jumps[(r, c)] = {
+                                'skipped': new_skipped,
+                                'path': [(r, c)] # Le chemin est juste cette case
+                            }
                         else:
-                            # S'il y a d'autres sauts, les vrais points finaux sont ceux des continuations.
-                            jumps.update(continuations)
+                            # Il y a d'autres sauts, on ajoute les chemins des continuations
+                            for landing_pos, data in continuations.items():
+                                # On préfixe le chemin avec notre case d'atterrissage actuelle
+                                data['path'].insert(0, (r, c))
+                                jumps[landing_pos] = data
                     else:
-                        # La case est bloquée, on ne peut pas atterrir ici.
                         break
                 elif current_piece != 0:
                     if current_piece.color == color:
-                        break # Bloqué par sa propre pièce
+                        break
                     else:
-                        # C'est une pièce adverse qu'on peut sauter.
                         if current_piece not in skipped:
                             opponent_found = current_piece
                         else:
-                            break # Déjà sauté cette pièce, on ne peut pas la sauter à nouveau.
-
+                            break
         return jumps
 
     def _find_king_simple_moves(self, row, col):

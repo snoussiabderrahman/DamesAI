@@ -32,63 +32,125 @@ class Game:
             
         pygame.display.update()
 
-    def _update_animation(self):
-        """Fait avancer l'animation d'une étape."""
-        data = self.animation_data
+    def ai_move(self, move_data):
+        """
+        Prépare l'animation. Cette version est robuste et gère correctement
+        toutes les structures de données de mouvement possibles.
+        """
+        if move_data is None:
+            return
+
+        piece, (end_row, end_col), move_details = move_data
         
-        # Interpolation linéaire pour un mouvement fluide
+        path = []
+        
+        # === CORRECTION DÉFINITIVE : Extraire la liste des pièces sautées ===
+        # move_details peut être une LISTE (pion) ou un DICTIONNAIRE (roi)
+        final_skipped_list = []
+        if isinstance(move_details, dict):
+            final_skipped_list = move_details.get('skipped', [])
+        else:
+            final_skipped_list = move_details
+        # ===================================================================
+
+        # Maintenant, on utilise cette liste "propre" pour construire le chemin
+        if isinstance(move_details, dict) and 'path' in move_details:
+            # Cas 1 : C'est un saut de roi, nous avons le chemin exact !
+            full_path_coords = move_details['path']
+            for i, (r, c) in enumerate(full_path_coords):
+                path.append({
+                    'target_row': r,
+                    'target_col': c,
+                    'skipped_piece': final_skipped_list[i] if i < len(final_skipped_list) else None
+                })
+        else:
+            # Cas 2 : C'est un mouvement simple ou un saut de pion
+            if final_skipped_list:
+                # Logique de calcul du chemin pour les PIONS
+                current_pos = (piece.row, piece.col)
+                for skipped_p in final_skipped_list:
+                    land_row = skipped_p.row + (skipped_p.row - current_pos[0])
+                    land_col = skipped_p.col + (skipped_p.col - current_pos[1])
+                    path.append({
+                        'target_row': land_row,
+                        'target_col': land_col,
+                        'skipped_piece': skipped_p
+                    })
+                    current_pos = (land_row, land_col)
+            else:
+                # Mouvement simple sans capture
+                path.append({'target_row': end_row, 'target_col': end_col, 'skipped_piece': None})
+
+        # Le reste de la fonction est le même qu'avant
+        self.animation_data = {
+            'piece': piece,
+            'path': path,
+            'current_x': piece.x,
+            'current_y': piece.y,
+            'target_x': None,
+            'target_y': None,
+            'visually_removed': []
+        }
+        
+        self._start_next_animation_leg()
+
+    def _start_next_animation_leg(self):
+        """Prépare la prochaine étape de l'animation à partir du chemin."""
+        if self.animation_data and self.animation_data['path']:
+            # On prend la prochaine étape de la file d'attente
+            next_leg = self.animation_data['path'].pop(0)
+            
+            # On définit la nouvelle cible
+            self.animation_data['target_x'] = next_leg['target_col'] * SQUARE_SIZE + SQUARE_SIZE // 2
+            self.animation_data['target_y'] = next_leg['target_row'] * SQUARE_SIZE + SQUARE_SIZE // 2
+            
+            # On cache la pièce qui vient d'être sautée
+            if next_leg['skipped_piece']:
+                self.animation_data['visually_removed'].append(next_leg['skipped_piece'])
+            return True
+        return False
+
+    def _update_animation(self):
+        """Fait avancer l'animation d'une étape vers la cible ACTUELLE."""
+        data = self.animation_data
+        if not data or data.get('target_x') is None:
+            return
+
         dx = data['target_x'] - data['current_x']
         dy = data['target_y'] - data['current_y']
-        
         distance = (dx**2 + dy**2)**0.5
         
-        if distance < self.animation_speed:
-            # L'animation est terminée
-            self._finalize_animation()
+        if distance < self.animation_speed * 2: # Une marge pour éviter de vibrer
+            # L'étape actuelle est terminée
+            data['current_x'] = data['target_x']
+            data['current_y'] = data['target_y']
+            
+            # Y a-t-il une autre étape dans le chemin ?
+            if not self._start_next_animation_leg():
+                # Non, le chemin est vide. L'animation est complètement terminée.
+                self._finalize_animation()
         else:
-            # On déplace la pièce d'un pas vers sa destination
+            # On déplace la pièce d'un pas vers sa cible
             data['current_x'] += self.animation_speed * (dx / distance)
             data['current_y'] += self.animation_speed * (dy / distance)
 
     def _finalize_animation(self):
-        """Termine l'animation et applique le coup à l'état du jeu."""
+        """Termine l'animation et applique le coup final à l'état du jeu."""
         if not self.animation_data:
             return
-
+            
         piece = self.animation_data['piece']
-        end_row = self.animation_data['end_row']
-        end_col = self.animation_data['end_col']
-        skipped = self.animation_data['skipped']
-
-        # Applique réellement le mouvement sur le plateau de jeu
-        self.board.remove(skipped)
-        self.board.move(piece, end_row, end_col)
+        # La position finale est celle de la dernière cible
+        final_row = int(self.animation_data['target_y'] // SQUARE_SIZE)
+        final_col = int(self.animation_data['current_x'] // SQUARE_SIZE)
+        
+        # Applique réellement les changements à l'état du plateau
+        self.board.remove(self.animation_data['visually_removed'])
+        self.board.move(piece, final_row, final_col)
         self.change_turn()
         
         # Réinitialise l'état de l'animation
         self.animation_data = None
-
-    def ai_move(self, move_data):
-        """
-        Au lieu d'exécuter le coup, cette méthode LANCE l'animation.
-        """
-        if move_data is None:
-            print("AI has no moves.")
-            return
-
-        piece, (end_row, end_col), skipped_pieces = move_data
-        
-        # Stocke toutes les informations nécessaires pour l'animation
-        self.animation_data = {
-            'piece': piece,
-            'end_row': end_row,
-            'end_col': end_col,
-            'skipped': skipped_pieces,
-            'current_x': piece.x,
-            'current_y': piece.y,
-            'target_x': end_col * SQUARE_SIZE + SQUARE_SIZE // 2,
-            'target_y': end_row * SQUARE_SIZE + SQUARE_SIZE // 2,
-        }
     
     def _init(self):
         self.selected = None
