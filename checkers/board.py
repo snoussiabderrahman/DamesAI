@@ -1,7 +1,25 @@
 import pygame
 from .constants import BROWN, ROWS, CREAM, SQUARE_SIZE, COLS, BLACK
 from .piece import Piece
-from minimax.algorithm import zobrist_table, zobrist_turn_black
+from minimax.algorithm import zobrist_table
+
+PIECE_SQUARE_TABLE = [
+    # Rangée 0 (Promotion) - Pas de bonus ici car la promotion est gérée par la création d'un roi
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], 
+    # Rangée 1 - Très proche de la promotion, forte valeur
+    [0.5, 0.0, 0.5, 0.0, 0.5, 0.0, 0.5, 0.0], 
+    # Rangée 2 - Bon contrôle et développement
+    [0.0, 0.3, 0.0, 0.4, 0.0, 0.4, 0.0, 0.3], 
+    # Rangée 3 - Cases centrales importantes
+    [0.3, 0.0, 0.2, 0.0, 0.2, 0.0, 0.3, 0.0], 
+    # Rangée 4 - Premières cases de développement
+    [0.0, 0.1, 0.0, 0.1, 0.0, 0.1, 0.0, 0.1], 
+    # Rangée 5 - Ligne de départ, valeur défensive
+    [0.1, 0.0, 0.1, 0.0, 0.1, 0.0, 0.1, 0.0], 
+    # Rangées 6 & 7 - Profond dans votre propre territoire, moins de valeur
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+]
 
 class Board:
      
@@ -283,10 +301,27 @@ class Board:
         return moves
    
     def evaluate(self, color):
+        king_value = 1.8
+
+        black_score = self.black_left + self.black_kings * king_value
+        cream_score = self.cream_left + self.cream_kings * king_value
+        
+        # Ajout de l'évaluation positionnelle
+        for r in range(ROWS):
+            for c in range(COLS):
+                piece = self.board[r][c]
+                if piece != 0 and not piece.king: # On applique ceci uniquement aux pions
+                    if piece.color == CREAM:
+                        cream_score += PIECE_SQUARE_TABLE[r][c]
+                    else:
+                        # On inverse la table pour les noirs 
+                        black_score += PIECE_SQUARE_TABLE[7 - r][7 - c]
+        
         if color == BLACK:
-            return self.black_left - self.cream_left +  (self.black_kings - self.cream_kings)/12
+            return black_score - cream_score
         else:
-            return self.cream_left - self.black_left +  (self.cream_kings - self.black_kings)/12
+            return cream_score - black_score
+        
 
     def get_all_pieces(self, color):
         pieces = []
@@ -356,6 +391,7 @@ class Board:
         retirées pour pouvoir les restaurer plus tard.
         """
         for piece in skipped_pieces:
+            self.update_hash_piece(piece) # === HACHAGE : Met à jour pour la pièce retirée ===
             self.board[piece.row][piece.col] = 0
             # Mettre à jour les comptes
             if piece.king:
@@ -369,6 +405,7 @@ class Board:
     def restore_skipped(self, skipped_pieces):
         """Restaure les pièces capturées sur le plateau."""
         for piece in skipped_pieces:
+            self.update_hash_piece(piece) # === HACHAGE : Un XOR annule un autre XOR ===
             self.board[piece.row][piece.col] = piece
             # Mettre à jour les comptes
             if piece.king:
