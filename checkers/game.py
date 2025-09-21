@@ -7,12 +7,89 @@ class Game:
     def __init__(self, win):
         self._init()
         self.win = win
+        # === NOUVEAU : Variables pour gérer l'état de l'animation ===
+        self.animation_data = None  # Stockera les infos du coup à animer
+        self.animation_speed = 4  # Vitesse de l'animation (plus élevé = plus rapide)
     
+    def is_animating(self):
+        """Retourne True si une animation est en cours."""
+        return self.animation_data is not None
+
     def update(self):
-        self.board.draw(self.win)
-        self.draw_valid_moves(self.valid_moves)
+        """
+        La méthode de mise à jour principale. Gère maintenant la logique d'animation.
+        """
+        # S'il y a une animation en cours, on la met à jour.
+        if self.is_animating():
+            self._update_animation()
+        
+        # On dessine le plateau. La méthode draw saura gérer l'animation.
+        self.board.draw(self.win, self.animation_data)
+        
+        # On dessine les coups valides pour le joueur humain.
+        if not self.is_animating():
+            self.draw_valid_moves(self.valid_moves)
+            
         pygame.display.update()
 
+    def _update_animation(self):
+        """Fait avancer l'animation d'une étape."""
+        data = self.animation_data
+        
+        # Interpolation linéaire pour un mouvement fluide
+        dx = data['target_x'] - data['current_x']
+        dy = data['target_y'] - data['current_y']
+        
+        distance = (dx**2 + dy**2)**0.5
+        
+        if distance < self.animation_speed:
+            # L'animation est terminée
+            self._finalize_animation()
+        else:
+            # On déplace la pièce d'un pas vers sa destination
+            data['current_x'] += self.animation_speed * (dx / distance)
+            data['current_y'] += self.animation_speed * (dy / distance)
+
+    def _finalize_animation(self):
+        """Termine l'animation et applique le coup à l'état du jeu."""
+        if not self.animation_data:
+            return
+
+        piece = self.animation_data['piece']
+        end_row = self.animation_data['end_row']
+        end_col = self.animation_data['end_col']
+        skipped = self.animation_data['skipped']
+
+        # Applique réellement le mouvement sur le plateau de jeu
+        self.board.remove(skipped)
+        self.board.move(piece, end_row, end_col)
+        self.change_turn()
+        
+        # Réinitialise l'état de l'animation
+        self.animation_data = None
+
+    def ai_move(self, move_data):
+        """
+        Au lieu d'exécuter le coup, cette méthode LANCE l'animation.
+        """
+        if move_data is None:
+            print("AI has no moves.")
+            return
+
+        piece, (end_row, end_col), skipped_pieces = move_data
+        
+        # Stocke toutes les informations nécessaires pour l'animation
+        self.animation_data = {
+            'piece': piece,
+            'end_row': end_row,
+            'end_col': end_col,
+            'skipped': skipped_pieces,
+            'current_x': piece.x,
+            'current_y': piece.y,
+            'target_x': end_col * SQUARE_SIZE + SQUARE_SIZE // 2,
+            'target_y': end_row * SQUARE_SIZE + SQUARE_SIZE // 2,
+        }
+    
     def _init(self):
         self.selected = None
         self.board = Board()
@@ -162,23 +239,6 @@ class Game:
     def get_board(self):
         return self.board
     
-    def ai_move(self, move_data):
-        """Exécute un coup retourné par l'algorithme IA."""
-        if move_data is None:
-            print("AI has no moves.")
-            return
-
-        piece, (end_row, end_col), skipped_pieces = move_data
-        
-        # Récupère la pièce la plus à jour depuis le plateau principal du jeu
-        current_piece = self.board.get_piece(piece.row, piece.col)
-        if current_piece == 0 or current_piece.color != self.turn:
-            # Sécurité si l'IA retourne un coup invalide
-            return
-
-        self.board.remove(skipped_pieces)
-        self.board.move(current_piece, end_row, end_col)
-        self.change_turn()
 
     def add_number_moves(self, color):
         print("color", color)

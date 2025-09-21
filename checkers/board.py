@@ -2,6 +2,7 @@ import pygame
 from .constants import BROWN, ROWS, CREAM, SQUARE_SIZE, COLS, BLACK
 from .piece import Piece
 from minimax.algorithm import zobrist_table
+from checkers.constants import GREY, CROWN
 
 PIECE_SQUARE_TABLE = [
     # Rangée 0 (Promotion) - Pas de bonus ici car la promotion est gérée par la création d'un roi
@@ -93,13 +94,32 @@ class Board:
                 else:
                     self.board[row].append(0)
     
-    def draw(self, win):
+    def draw(self, win, animation_data=None):
+        """
+        La méthode de dessin principale, maintenant consciente de l'animation.
+        """
         self.draw_squares(win)
+        
+        animating_piece = None
+        if animation_data:
+            animating_piece = animation_data['piece']
+
         for row in range(ROWS):
             for col in range(COLS):
                 piece = self.board[row][col]
                 if piece != 0:
+                    # On ne dessine pas la pièce qui est en cours d'animation
+                    if piece == animating_piece:
+                        continue
                     piece.draw(win)
+
+        # La pièce animée est dessinée séparément par la classe Game après cet appel
+        if animating_piece:
+            # On utilise les coordonnées interpolées de l'animation
+            pygame.draw.circle(win, GREY, (animation_data['current_x'], animation_data['current_y']), SQUARE_SIZE//2 - 15 + 2)
+            pygame.draw.circle(win, animating_piece.color, (animation_data['current_x'], animation_data['current_y']), SQUARE_SIZE//2 - 15)
+            if animating_piece.king:
+                win.blit(CROWN, (animation_data['current_x'] - CROWN.get_width()//2, animation_data['current_y'] - CROWN.get_height()//2))
 
     def print_board(self):
         for row in range(ROWS):

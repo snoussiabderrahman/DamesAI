@@ -35,7 +35,7 @@ def main():
             run = False
 
     
-        if game.turn == BLACK:
+        if game.turn == BLACK and not game.is_animating():
             # === NOUVEAU : Vider la TT avant chaque nouvelle recherche ===
             transposition_table.clear()
 
@@ -66,7 +66,7 @@ def main():
             if event.type == pygame.QUIT:
                 run = False
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN and not game.is_animating():
                 pos = pygame.mouse.get_pos()
                 row, col = get_row_col_from_mouse(pos)
                 game.select(row, col)
