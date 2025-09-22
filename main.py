@@ -40,31 +40,58 @@ def draw_sidebar(surface, game):
     sidebar_rect = pygame.Rect(BOARD_WIDTH, 0, SIDEBAR_WIDTH, HEIGHT)
     pygame.draw.rect(surface, BROWN, sidebar_rect)
 
+    # === MODIFICATION : Utiliser la nouvelle constante pour la largeur ===
+    separator_rect = pygame.Rect(BOARD_WIDTH - SEPARATOR_WIDTH, 0, SEPARATOR_WIDTH, HEIGHT)
+    pygame.draw.rect(surface, DARK_GREY, separator_rect)
+    # ===============================================
+
     # Titre du score
     draw_text(surface, "Score", FONT_SIDEBAR_TITLE, CREAM, BOARD_WIDTH + 150, 50, center=True)
+    # ... (le reste de la fonction reste le même) ...
     # Scores
     draw_text(surface, f"Cream (You): {game.cream_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 120, center=True)
     draw_text(surface, f"Black (AI): {game.black_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 170, center=True)
 
-    # Affichage du gagnant
+    # Affichage du gagnant / message de l'IA
     if game.game_over:
         draw_text(surface, "Game Over!", FONT_SIDEBAR_TITLE, RED, BOARD_WIDTH + 150, 300, center=True)
         draw_text(surface, game.winner_message, FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 350, center=True)
-    elif game.ai_is_thinking: # <-- AJOUT : Affichez le message si l'IA réfléchit
+    elif game.ai_is_thinking:
         draw_text(surface, "AI is thinking...", FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 450, center=True)
 
-    # Bouton de redémarrage
-    restart_btn_rect = pygame.Rect(BOARD_WIDTH + 50, HEIGHT - 100, SIDEBAR_WIDTH - 100, 50)
+    # On déplace le bouton Restart un peu plus haut
+    restart_btn_rect = pygame.Rect(BOARD_WIDTH + 50, HEIGHT - 170, SIDEBAR_WIDTH - 100, 50)
     draw_button(surface, restart_btn_rect, "Restart", FONT_SIDEBAR_BODY, GREEN, BLACK)
-    return restart_btn_rect
+
+    # On ajoute le bouton "Back to Menu" en dessous
+    menu_btn_rect = pygame.Rect(BOARD_WIDTH + 50, HEIGHT - 100, SIDEBAR_WIDTH - 100, 50)
+    draw_button(surface, menu_btn_rect, "Back to Menu", FONT_SIDEBAR_BODY, GREY, BLACK)
+    
+    return restart_btn_rect, menu_btn_rect
+
 
 def draw_board_coordinates(surface):
-    """Dessine les coordonnées (a-h, 1-8) autour du plateau."""
+    """
+    Dessine les coordonnées (a-h, 1-8) autour du plateau.
+    Version mise à jour pour un alignement dans les coins.
+    """
+    # Une petite marge pour ne pas coller le texte aux bords
+    padding = 5 
+
     for i in range(8):
-        # Lettres (a-h) en bas
-        draw_text(surface, chr(ord('a') + i), FONT_COORDS, WHITE, (i * SQUARE_SIZE) + SQUARE_SIZE // 2, BOARD_WIDTH + 5)
-        # Nombres (1-8) à gauche
-        draw_text(surface, str(8 - i), FONT_COORDS, WHITE, 5, (i * SQUARE_SIZE) + SQUARE_SIZE // 2)
+        # --- Nombres (1-8) : dans le coin SUPÉRIEUR GAUCHE de chaque case de la première colonne ---
+        # On calcule la coordonnée Y en haut de la case `i` + un petit padding
+        y_coord = (i * SQUARE_SIZE) + padding
+        # L'argument `center=False` est crucial, il aligne le texte par son coin supérieur gauche
+        draw_text(surface, str(8 - i), FONT_COORDS, DARK_GREY, padding, y_coord, center=False)
+        
+        # --- Lettres (a-h) : dans le coin INFÉRIEUR GAUCHE de chaque case de la dernière rangée ---
+        # On calcule la coordonnée X à gauche de la case `i` + un petit padding
+        x_coord = (i * SQUARE_SIZE) + padding
+        # La coordonnée Y est calculée à partir du bas de l'écran MOINS la hauteur de la police
+        # pour que le bas du texte soit aligné avec le bas du plateau.
+        y_coord_bottom = HEIGHT - FONT_COORDS.get_height() - padding
+        draw_text(surface, chr(ord('a') + i), FONT_COORDS, DARK_GREY, x_coord, y_coord_bottom, center=False)
 
 # --- NOUVEAU : Fonction wrapper pour le calcul de l'IA ---
 def run_ai_calculation(board_to_search, killer_moves, profiler, result_container):
@@ -134,6 +161,8 @@ def main():
                 elif game_state == "PLAYING":
                     if restart_btn.collidepoint(mouse_pos):
                         game.reset()
+                    elif menu_btn.collidepoint(mouse_pos):
+                        game_state = "MAIN_MENU"
                     elif not game.is_animating() and not game.game_over:
                         row = mouse_pos[1] // SQUARE_SIZE
                         col = mouse_pos[0] // SQUARE_SIZE
@@ -177,11 +206,11 @@ def main():
             draw_text(WIN, "- Capture is mandatory.", FONT_SIDEBAR_BODY, WHITE, 100, 200)
             draw_text(WIN, "- You must take the path that captures the MOST pieces.", FONT_SIDEBAR_BODY, WHITE, 100, 250)
             draw_text(WIN, "- Kings (Damas) can move and capture across long diagonals.", FONT_SIDEBAR_BODY, WHITE, 100, 300)
-            draw_button(WIN, back_btn, "Back to Menu", FONT_SIDEBAR_TITLE, GREY, BLACK)
+            draw_button(WIN, back_btn, "Back to Menu", FONT_SIDEBAR_BODY, GREY, BLACK)
         elif game_state == "PLAYING":
             WIN.fill(BROWN)
             game.update() # Gère l'animation et le dessin du plateau
-            restart_btn = draw_sidebar(WIN, game)
+            restart_btn, menu_btn = draw_sidebar(WIN, game)
             draw_board_coordinates(WIN)
             
             # Vérifier la condition de victoire

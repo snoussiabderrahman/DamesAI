@@ -19,6 +19,7 @@ def resource_path(relative_path):
 SIDEBAR_WIDTH = 300
 BOARD_WIDTH = 700
 WIDTH, HEIGHT = BOARD_WIDTH + SIDEBAR_WIDTH, BOARD_WIDTH  # Nouvelle largeur : 1000x700
+SEPARATOR_WIDTH = 4
 # ===================================================================
 
 ROWS, COLS = 8, 8
@@ -34,6 +35,7 @@ GREY = (128, 128, 128)
 WHITE = (255, 255, 255)
 RED = (200, 0, 0)
 GREEN = (0, 200, 0)
+DARK_GREY = (40, 40, 40)
 
 # Polices pour le texte
 FONT_MENU = pygame.font.SysFont("comicsans", 70)
