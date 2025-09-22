@@ -9,7 +9,7 @@ class Game:
         self.win = win
         # === NOUVEAU : Variables pour gérer l'état de l'animation ===
         self.animation_data = None  # Stockera les infos du coup à animer
-        self.animation_speed = 20  # Vitesse de l'animation (plus élevé = plus rapide)
+        self.animation_speed = 15  # Vitesse de l'animation (plus élevé = plus rapide)
 
         self.black_wins = 0
         self.cream_wins = 0
@@ -36,62 +36,30 @@ class Game:
         if not self.is_animating():
             self.draw_valid_moves(self.valid_moves)
             
-
-
-    def ai_move(self, move_data):
+    # === NOUVELLE FONCTION CENTRALE POUR TOUTES LES ANIMATIONS ===
+    def start_move_animation(self, piece, end_row, end_col, move_details):
         """
-        Prépare l'animation. Cette version est "paranoïaque" et retraduit toutes
-        les informations de la copie de l'IA vers le plateau principal pour
-        éviter les bugs de référence d'objet.
+        Prépare et lance l'animation pour n'importe quel coup (IA ou joueur).
         """
-        if move_data is None:
-            return
-
-        # move_data contient des pièces de la COPIE du plateau.
-        piece_from_copy, (end_row, end_col), move_details_from_copy = move_data
-        
-        # === ÉTAPE 1 : TRADUCTION DES OBJETS DE LA COPIE VERS LE PLATEAU PRINCIPAL ===
-
-        # 1a. Retrouver la pièce qui bouge sur le VRAI plateau.
-        start_row, start_col = piece_from_copy.row, piece_from_copy.col
-        piece_on_main_board = self.board.get_piece(start_row, start_col)
-        
-        if piece_on_main_board == 0:
-            print(f"FATAL ERROR: AI tried to move a piece from ({start_row},{start_col}) which is empty on the main board.")
-            return
-
-        # 1b. Retrouver la liste des pièces sautées sur le VRAI plateau.
-        skipped_list_on_main_board = []
-        path_coords_from_copy = []
-
-        if isinstance(move_details_from_copy, dict):
-            # C'est un saut de roi, on a un dictionnaire complet
-            skipped_list_from_copy = move_details_from_copy.get('skipped', [])
-            path_coords_from_copy = move_details_from_copy.get('path', [])
-        elif isinstance(move_details_from_copy, list):
-            # C'est un saut de pion, les détails sont la liste des pièces
-            skipped_list_from_copy = move_details_from_copy
-        
-        # Maintenant, on traduit la liste des pièces sautées
-        for p_copy in skipped_list_from_copy:
-            p_main = self.board.get_piece(p_copy.row, p_copy.col)
-            if p_main != 0:
-                skipped_list_on_main_board.append(p_main)
-
-        # === ÉTAPE 2 : CONSTRUCTION DU CHEMIN D'ANIMATION AVEC LES VRAIS OBJETS ===
-
         path = []
-        if path_coords_from_copy:
-            # Cas du roi : on utilise le chemin pré-calculé
-            for i, (r, c) in enumerate(path_coords_from_copy):
+        final_skipped_list = []
+
+        if isinstance(move_details, dict):
+            final_skipped_list = move_details.get('skipped', [])
+        elif isinstance(move_details, list):
+            final_skipped_list = move_details
+
+        if isinstance(move_details, dict) and 'path' in move_details:
+            # Cas du roi : le chemin est pré-calculé
+            for i, (r, c) in enumerate(move_details['path']):
                 path.append({
                     'target_row': r, 'target_col': c,
-                    'skipped_piece': skipped_list_on_main_board[i] if i < len(skipped_list_on_main_board) else None
+                    'skipped_piece': final_skipped_list[i] if i < len(final_skipped_list) else None
                 })
-        elif skipped_list_on_main_board:
+        elif final_skipped_list:
             # Cas du pion : on calcule le chemin
-            current_pos = (start_row, start_col)
-            for skipped_p in skipped_list_on_main_board:
+            current_pos = (piece.row, piece.col)
+            for skipped_p in final_skipped_list:
                 land_row = skipped_p.row + (skipped_p.row - current_pos[0])
                 land_col = skipped_p.col + (skipped_p.col - current_pos[1])
                 path.append({
@@ -103,19 +71,50 @@ class Game:
             # Mouvement simple
             path.append({'target_row': end_row, 'target_col': end_col, 'skipped_piece': None})
 
-        # === ÉTAPE 3 : LANCEMENT DE L'ANIMATION ===
-        # Toutes les données ici font référence au plateau principal.
         self.animation_data = {
-            'piece': piece_on_main_board,
+            'piece': piece,
             'path': path,
-            'current_x': piece_on_main_board.x,
-            'current_y': piece_on_main_board.y,
+            'current_x': piece.x,
+            'current_y': piece.y,
             'target_x': None,
             'target_y': None,
             'visually_removed': []
         }
         
         self._start_next_animation_leg()
+
+    def ai_move(self, move_data):
+        """
+        Fonction déclencheur pour l'IA. Traduit les données de la copie de l'IA
+        et appelle la fonction d'animation centrale.
+        """
+        if move_data is None: return
+
+        piece_from_copy, (end_row, end_col), move_details_from_copy = move_data
+        
+        # Traduction des objets de la copie vers le plateau principal
+        start_row, start_col = piece_from_copy.row, piece_from_copy.col
+        piece_on_main_board = self.board.get_piece(start_row, start_col)
+        
+        if piece_on_main_board == 0: return
+
+        # Traduire les pièces sautées
+        final_move_details = move_details_from_copy
+        if isinstance(move_details_from_copy, dict):
+            skipped_list_main = []
+            for p_copy in move_details_from_copy.get('skipped', []):
+                p_main = self.board.get_piece(p_copy.row, p_copy.col)
+                if p_main != 0: skipped_list_main.append(p_main)
+            final_move_details['skipped'] = skipped_list_main
+        elif isinstance(move_details_from_copy, list):
+            skipped_list_main = []
+            for p_copy in move_details_from_copy:
+                p_main = self.board.get_piece(p_copy.row, p_copy.col)
+                if p_main != 0: skipped_list_main.append(p_main)
+            final_move_details = skipped_list_main
+            
+        # Appel à la fonction d'animation centrale avec des objets "sûrs"
+        self.start_move_animation(piece_on_main_board, end_row, end_col, final_move_details)
     
     def _start_next_animation_leg(self):
         """Prépare la prochaine étape de l'animation à partir du chemin."""
@@ -296,30 +295,25 @@ class Game:
         return mandatory_moves
 
     def _move(self, row, col):
-        piece = self.board.get_piece(row, col)
-        if self.selected and piece == 0 and (row, col) in self.valid_moves:
-            # --- CORRECTION DU CRASH ---
-            # On extrait la liste des pièces sautées, que ce soit une liste ou un dictionnaire
-            skipped_details = self.valid_moves[(row, col)]
+        """
+        Fonction déclencheur pour le joueur. Au lieu de déplacer la pièce,
+        elle appelle maintenant la fonction d'animation centrale.
+        """
+        piece_on_board = self.board.get_piece(row, col)
+        if self.selected and piece_on_board == 0 and (row, col) in self.valid_moves:
             
-            final_skipped_list = []
-            if isinstance(skipped_details, dict):
-                final_skipped_list = skipped_details.get('skipped', [])
-            else:
-                final_skipped_list = skipped_details
-            # ---------------------------
-
-            self.board.move(self.selected, row, col)
+            move_details = self.valid_moves[(row, col)]
             
-            if final_skipped_list:
-                # On utilise la liste "propre" pour retirer les pièces
-                self.board.remove(final_skipped_list)
+            # Appel à la fonction d'animation centrale
+            self.start_move_animation(self.selected, row, col, move_details)
             
-            self.change_turn()
-        else:
-            return False
-
-        return True
+            # Important : on désélectionne la pièce car le coup est "engagé"
+            self.selected = None
+            self.valid_moves = {}
+            
+            return True # Le déclenchement de l'animation a réussi
+        
+        return False # Le clic n'était pas un coup valide
 
     def draw_valid_moves(self, moves):
         for move in moves:
