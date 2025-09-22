@@ -81,7 +81,7 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
             
     return alpha
 
-def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, profiler):
+def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
     # --- Début de la fonction (recherche TT, etc.) ---
     alpha_orig = alpha
     current_hash = position.zobrist_hash
@@ -102,7 +102,7 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
 
     profiler.increment_nodes()
 
-    if position.winner(game.turn) is not None:
+    if position.winner(color_player) is not None:
         return position.evaluate(color_player), None
 
     if depth == 0:
@@ -135,7 +135,7 @@ def NegaMax(position, depth, color_player, alpha, beta, game, killer_moves, prof
         was_promoted = position.make_move(piece, end_row, end_col)
         
         # Appel récursif
-        evaluation = -NegaMax(position, depth - 1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, game, killer_moves, profiler)[0]
+        evaluation = -NegaMax(position, depth - 1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, killer_moves, profiler)[0]
         
         # --- DÉFAIRE LE COUP (UNDO MOVE) ---
         position.undo_move(piece, start_row, start_col, was_promoted)

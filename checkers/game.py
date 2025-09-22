@@ -36,69 +36,87 @@ class Game:
         if not self.is_animating():
             self.draw_valid_moves(self.valid_moves)
             
-    
+
+
     def ai_move(self, move_data):
         """
-        Prépare l'animation. Cette version est robuste et gère correctement
-        toutes les structures de données de mouvement possibles.
+        Prépare l'animation. Cette version est "paranoïaque" et retraduit toutes
+        les informations de la copie de l'IA vers le plateau principal pour
+        éviter les bugs de référence d'objet.
         """
         if move_data is None:
             return
 
-        piece, (end_row, end_col), move_details = move_data
+        # move_data contient des pièces de la COPIE du plateau.
+        piece_from_copy, (end_row, end_col), move_details_from_copy = move_data
         
+        # === ÉTAPE 1 : TRADUCTION DES OBJETS DE LA COPIE VERS LE PLATEAU PRINCIPAL ===
+
+        # 1a. Retrouver la pièce qui bouge sur le VRAI plateau.
+        start_row, start_col = piece_from_copy.row, piece_from_copy.col
+        piece_on_main_board = self.board.get_piece(start_row, start_col)
+        
+        if piece_on_main_board == 0:
+            print(f"FATAL ERROR: AI tried to move a piece from ({start_row},{start_col}) which is empty on the main board.")
+            return
+
+        # 1b. Retrouver la liste des pièces sautées sur le VRAI plateau.
+        skipped_list_on_main_board = []
+        path_coords_from_copy = []
+
+        if isinstance(move_details_from_copy, dict):
+            # C'est un saut de roi, on a un dictionnaire complet
+            skipped_list_from_copy = move_details_from_copy.get('skipped', [])
+            path_coords_from_copy = move_details_from_copy.get('path', [])
+        elif isinstance(move_details_from_copy, list):
+            # C'est un saut de pion, les détails sont la liste des pièces
+            skipped_list_from_copy = move_details_from_copy
+        
+        # Maintenant, on traduit la liste des pièces sautées
+        for p_copy in skipped_list_from_copy:
+            p_main = self.board.get_piece(p_copy.row, p_copy.col)
+            if p_main != 0:
+                skipped_list_on_main_board.append(p_main)
+
+        # === ÉTAPE 2 : CONSTRUCTION DU CHEMIN D'ANIMATION AVEC LES VRAIS OBJETS ===
+
         path = []
-        
-        # === CORRECTION DÉFINITIVE : Extraire la liste des pièces sautées ===
-        # move_details peut être une LISTE (pion) ou un DICTIONNAIRE (roi)
-        final_skipped_list = []
-        if isinstance(move_details, dict):
-            final_skipped_list = move_details.get('skipped', [])
-        else:
-            final_skipped_list = move_details
-        # ===================================================================
-
-        # Maintenant, on utilise cette liste "propre" pour construire le chemin
-        if isinstance(move_details, dict) and 'path' in move_details:
-            # Cas 1 : C'est un saut de roi, nous avons le chemin exact !
-            full_path_coords = move_details['path']
-            for i, (r, c) in enumerate(full_path_coords):
+        if path_coords_from_copy:
+            # Cas du roi : on utilise le chemin pré-calculé
+            for i, (r, c) in enumerate(path_coords_from_copy):
                 path.append({
-                    'target_row': r,
-                    'target_col': c,
-                    'skipped_piece': final_skipped_list[i] if i < len(final_skipped_list) else None
+                    'target_row': r, 'target_col': c,
+                    'skipped_piece': skipped_list_on_main_board[i] if i < len(skipped_list_on_main_board) else None
                 })
+        elif skipped_list_on_main_board:
+            # Cas du pion : on calcule le chemin
+            current_pos = (start_row, start_col)
+            for skipped_p in skipped_list_on_main_board:
+                land_row = skipped_p.row + (skipped_p.row - current_pos[0])
+                land_col = skipped_p.col + (skipped_p.col - current_pos[1])
+                path.append({
+                    'target_row': land_row, 'target_col': land_col,
+                    'skipped_piece': skipped_p
+                })
+                current_pos = (land_row, land_col)
         else:
-            # Cas 2 : C'est un mouvement simple ou un saut de pion
-            if final_skipped_list:
-                # Logique de calcul du chemin pour les PIONS
-                current_pos = (piece.row, piece.col)
-                for skipped_p in final_skipped_list:
-                    land_row = skipped_p.row + (skipped_p.row - current_pos[0])
-                    land_col = skipped_p.col + (skipped_p.col - current_pos[1])
-                    path.append({
-                        'target_row': land_row,
-                        'target_col': land_col,
-                        'skipped_piece': skipped_p
-                    })
-                    current_pos = (land_row, land_col)
-            else:
-                # Mouvement simple sans capture
-                path.append({'target_row': end_row, 'target_col': end_col, 'skipped_piece': None})
+            # Mouvement simple
+            path.append({'target_row': end_row, 'target_col': end_col, 'skipped_piece': None})
 
-        # Le reste de la fonction est le même qu'avant
+        # === ÉTAPE 3 : LANCEMENT DE L'ANIMATION ===
+        # Toutes les données ici font référence au plateau principal.
         self.animation_data = {
-            'piece': piece,
+            'piece': piece_on_main_board,
             'path': path,
-            'current_x': piece.x,
-            'current_y': piece.y,
+            'current_x': piece_on_main_board.x,
+            'current_y': piece_on_main_board.y,
             'target_x': None,
             'target_y': None,
             'visually_removed': []
         }
         
         self._start_next_animation_leg()
-
+    
     def _start_next_animation_leg(self):
         """Prépare la prochaine étape de l'animation à partir du chemin."""
         if self.animation_data and self.animation_data['path']:

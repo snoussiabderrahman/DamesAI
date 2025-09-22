@@ -9,13 +9,14 @@ import time
 import sys
 import os
 import threading
+from copy import deepcopy
 
 # --- Configuration de la fenêtre et des polices ---
 pygame.display.set_caption('DamesAI')
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 
 FPS = 60
-SEARCH_DEPTH = 10
+SEARCH_DEPTH = 8
 
 # --- Fonctions d'aide pour le dessin ---
 
@@ -66,21 +67,24 @@ def draw_board_coordinates(surface):
         draw_text(surface, str(8 - i), FONT_COORDS, WHITE, 5, (i * SQUARE_SIZE) + SQUARE_SIZE // 2)
 
 # --- NOUVEAU : Fonction wrapper pour le calcul de l'IA ---
-def run_ai_calculation(game, killer_moves, profiler, result_container):
+def run_ai_calculation(board_to_search, killer_moves, profiler, result_container):
     """
-    Cette fonction sera exécutée dans un thread séparé pour ne pas geler l'interface.
+    Cette fonction sera exécutée dans un thread séparé sur une COPIE du plateau.
     """
     profiler.reset()
     profiler.start_timer()
     
     transposition_table.clear()
-    value, best_move_data = NegaMax(game.get_board(), SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), game, killer_moves, profiler)
+    
+    # === CORRECTION : Appel à NegaMax avec la bonne signature (6 arguments) ===
+    # On utilise 'board_to_search' et on a retiré 'game' (qui était None)
+    value, best_move_data = NegaMax(board_to_search, SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), killer_moves, profiler)
+    # =======================================================================
     
     profiler.stop_timer()
     profiler.set_tt_size(len(transposition_table))
     profiler.display_results(SEARCH_DEPTH, value, best_move_data)
     
-    # On stocke le résultat dans un conteneur partagé
     result_container.append(best_move_data)
 
 # --- Boucle Principale ---
@@ -138,15 +142,17 @@ def main():
 
         # === NOUVELLE LOGIQUE DE JEU NON-BLOQUANTE POUR L'IA ===
         if game_state == "PLAYING" and game.turn == BLACK and not game.is_animating() and not game.game_over:
-            # Si aucun thread de l'IA n'est en cours d'exécution, on en lance un.
             if ai_thread is None:
                 game.ai_is_thinking = True
                 ai_result = []
-                # Créer et démarrer le thread
-                ai_thread = threading.Thread(target=run_ai_calculation, args=(game, killer_moves, profiler, ai_result))
+                
+                # === CORRECTION CRUCIALE : S'assurer de copier le PLATEAU, pas le JEU ===
+                board_copy = deepcopy(game.get_board())
+                # ===================================================================
+
+                # On passe la COPIE DU PLATEAU au thread
+                ai_thread = threading.Thread(target=run_ai_calculation, args=(board_copy, killer_moves, profiler, ai_result))
                 ai_thread.start()
-            
-            # Si le thread a terminé son calcul
             elif not ai_thread.is_alive():
                 game.ai_is_thinking = False
                 if ai_result:

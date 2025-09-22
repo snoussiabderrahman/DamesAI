@@ -148,14 +148,15 @@ class Board:
             return "Equal"
         
         pieces = self.get_all_pieces(color)
+        if not pieces: # Le joueur n'a plus de pièces
+             return "PLAYER black WINS!" if color == CREAM else "Player cream WINS!"
+
         for piece in pieces:
-            moves = self.get_valid_moves(piece)
-            if moves:
-                return None
-        if color == CREAM:
-            return "PLAYER black WINS!"
-        else:
-            return "Player cream WINS!"
+            if self.get_valid_moves(piece):
+                return None # Il y a au moins un coup possible
+
+        # Si on arrive ici, le joueur est bloqué
+        return "PLAYER black WINS!" if color == CREAM else "Player cream WINS!"
         
     
     def get_valid_moves(self, piece):
