@@ -1,89 +1,191 @@
+# main.py
+
 import pygame
-from checkers.constants import WIDTH, HEIGHT, SQUARE_SIZE, BLACK
+from checkers.constants import * # Importer toutes les constantes
 from checkers.game import Game
-from minimax.algorithm import NegaMax
+from minimax.algorithm import NegaMax, transposition_table
 from minimax.profiler import AIProfiler
 import time
-from minimax.algorithm import NegaMax, transposition_table
-import os
 import sys
+import os
+import threading
+
+# --- Configuration de la fenêtre et des polices ---
+pygame.display.set_caption('DamesAI')
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 
 FPS = 60
-SEARCH_DEPTH = 8
+SEARCH_DEPTH = 10
 
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption('Checkers')
+# --- Fonctions d'aide pour le dessin ---
 
-def get_row_col_from_mouse(pos):
-    x, y = pos
-    row = y // SQUARE_SIZE
-    col = x // SQUARE_SIZE
-    return row, col
+def draw_text(surface, text, font, color, x, y, center=False):
+    """Fonction générique pour dessiner du texte."""
+    text_surface = font.render(text, True, color)
+    text_rect = text_surface.get_rect()
+    if center:
+        text_rect.center = (x, y)
+    else:
+        text_rect.topleft = (x, y)
+    surface.blit(text_surface, text_rect)
+
+def draw_button(surface, rect, text, font, color_bg, color_text):
+    """Dessine un bouton simple."""
+    pygame.draw.rect(surface, color_bg, rect, border_radius=10)
+    draw_text(surface, text, font, color_text, rect.centerx, rect.centery, center=True)
+
+def draw_sidebar(surface, game):
+    """Dessine la barre latérale avec les scores et les boutons."""
+    sidebar_rect = pygame.Rect(BOARD_WIDTH, 0, SIDEBAR_WIDTH, HEIGHT)
+    pygame.draw.rect(surface, BROWN, sidebar_rect)
+
+    # Titre du score
+    draw_text(surface, "Score", FONT_SIDEBAR_TITLE, CREAM, BOARD_WIDTH + 150, 50, center=True)
+    # Scores
+    draw_text(surface, f"Cream (You): {game.cream_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 120, center=True)
+    draw_text(surface, f"Black (AI): {game.black_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 170, center=True)
+
+    # Affichage du gagnant
+    if game.game_over:
+        draw_text(surface, "Game Over!", FONT_SIDEBAR_TITLE, RED, BOARD_WIDTH + 150, 300, center=True)
+        draw_text(surface, game.winner_message, FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 350, center=True)
+    elif game.ai_is_thinking: # <-- AJOUT : Affichez le message si l'IA réfléchit
+        draw_text(surface, "AI is thinking...", FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 450, center=True)
+
+    # Bouton de redémarrage
+    restart_btn_rect = pygame.Rect(BOARD_WIDTH + 50, HEIGHT - 100, SIDEBAR_WIDTH - 100, 50)
+    draw_button(surface, restart_btn_rect, "Restart", FONT_SIDEBAR_BODY, GREEN, BLACK)
+    return restart_btn_rect
+
+def draw_board_coordinates(surface):
+    """Dessine les coordonnées (a-h, 1-8) autour du plateau."""
+    for i in range(8):
+        # Lettres (a-h) en bas
+        draw_text(surface, chr(ord('a') + i), FONT_COORDS, WHITE, (i * SQUARE_SIZE) + SQUARE_SIZE // 2, BOARD_WIDTH + 5)
+        # Nombres (1-8) à gauche
+        draw_text(surface, str(8 - i), FONT_COORDS, WHITE, 5, (i * SQUARE_SIZE) + SQUARE_SIZE // 2)
+
+# --- NOUVEAU : Fonction wrapper pour le calcul de l'IA ---
+def run_ai_calculation(game, killer_moves, profiler, result_container):
+    """
+    Cette fonction sera exécutée dans un thread séparé pour ne pas geler l'interface.
+    """
+    profiler.reset()
+    profiler.start_timer()
+    
+    transposition_table.clear()
+    value, best_move_data = NegaMax(game.get_board(), SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), game, killer_moves, profiler)
+    
+    profiler.stop_timer()
+    profiler.set_tt_size(len(transposition_table))
+    profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+    
+    # On stocke le résultat dans un conteneur partagé
+    result_container.append(best_move_data)
+
+# --- Boucle Principale ---
 
 def main():
     run = True
     clock = pygame.time.Clock()
+    game_state = "MAIN_MENU"  # États possibles: MAIN_MENU, RULES, PLAYING
+    
+    # Initialisation du jeu et de l'IA
     game = Game(WIN)
-    killer_moves = {}
     profiler = AIProfiler()
+    killer_moves = {}
+
+    # === NOUVEAU : Variables pour gérer le thread de l'IA ===
+    ai_thread = None
+    ai_result = []
+
+    # Définition des rectangles des boutons du menu
+    start_btn = pygame.Rect(WIDTH//2 - 150, 250, 300, 70)
+    rules_btn = pygame.Rect(WIDTH//2 - 150, 350, 300, 70)
+    exit_btn = pygame.Rect(WIDTH//2 - 150, 450, 300, 70)
+    back_btn = pygame.Rect(WIDTH//2 - 100, HEIGHT - 120, 200, 60)
+    restart_btn = pygame.Rect(0,0,0,0) # Sera défini dans la boucle
 
     while run:
         clock.tick(FPS)
+        mouse_pos = pygame.mouse.get_pos()
 
-        if game.winner(game.turn) != None:
-            print(game.winner(game.turn))
-            run = False
-
-    
-        if game.turn == BLACK and not game.is_animating():
-            # === NOUVEAU : Vider la TT avant chaque nouvelle recherche ===
-            transposition_table.clear()
-
-            # 1. Réinitialisez et démarrez le chronomètre
-            #profiler.reset()
-            #profiler.start_timer()#
-
-            # 2. Appelez NegaMax en passant l'objet profiler
-            value, best_move_data = NegaMax(game.get_board(), SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), game, killer_moves, profiler)
-            
-            # 3. Arrêtez le chronomètre
-            #profiler.stop_timer()
-            
-            # Enregistre la taille de la TT après la recherche
-            #profiler.set_tt_size(len(transposition_table))
-
-            # 4. Affichez les résultats
-            #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
-
-            # Si un mouvement a été trouvé, exécutez-le
-            if best_move_data:
-                game.ai_move(best_move_data)
-            else:
-                print("AI could not find a valid move.")
-        
-
+        # Gestion des événements
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
 
-            if event.type == pygame.MOUSEBUTTONDOWN and not game.is_animating():
-                pos = pygame.mouse.get_pos()
-                row, col = get_row_col_from_mouse(pos)
-                game.select(row, col)
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if game_state == "MAIN_MENU":
+                    if start_btn.collidepoint(mouse_pos):
+                        game_state = "PLAYING"
+                        game.reset()
+                    if rules_btn.collidepoint(mouse_pos):
+                        game_state = "RULES"
+                    if exit_btn.collidepoint(mouse_pos):
+                        run = False
+                elif game_state == "RULES":
+                    if back_btn.collidepoint(mouse_pos):
+                        game_state = "MAIN_MENU"
+                elif game_state == "PLAYING":
+                    if restart_btn.collidepoint(mouse_pos):
+                        game.reset()
+                    elif not game.is_animating() and not game.game_over:
+                        row = mouse_pos[1] // SQUARE_SIZE
+                        col = mouse_pos[0] // SQUARE_SIZE
+                        if col < 8: # S'assurer que le clic est sur le plateau
+                            game.select(row, col)
+
+        # === NOUVELLE LOGIQUE DE JEU NON-BLOQUANTE POUR L'IA ===
+        if game_state == "PLAYING" and game.turn == BLACK and not game.is_animating() and not game.game_over:
+            # Si aucun thread de l'IA n'est en cours d'exécution, on en lance un.
+            if ai_thread is None:
+                game.ai_is_thinking = True
+                ai_result = []
+                # Créer et démarrer le thread
+                ai_thread = threading.Thread(target=run_ai_calculation, args=(game, killer_moves, profiler, ai_result))
+                ai_thread.start()
             
-        game.update()
-        time.sleep(.1)
-    
+            # Si le thread a terminé son calcul
+            elif not ai_thread.is_alive():
+                game.ai_is_thinking = False
+                if ai_result:
+                    best_move_data = ai_result[0]
+                    game.ai_move(best_move_data)
+                else: # L'IA n'a pas de coup
+                    game.update_winner()
+                ai_thread = None # Réinitialiser le thread pour le prochain tour
+        # =======================================================
+        
+        # Logique de dessin
+        if game_state == "MAIN_MENU":
+            WIN.blit(MENU_BACKGROUND, (0, 0))
+            draw_text(WIN, "DamesAI", FONT_MENU, WHITE, WIDTH//2, 100, center=True)
+            draw_button(WIN, start_btn, "Start Game", FONT_SIDEBAR_TITLE, GREEN, BLACK)
+            draw_button(WIN, rules_btn, "Rules", FONT_SIDEBAR_TITLE, BLUE, WHITE)
+            draw_button(WIN, exit_btn, "Exit", FONT_SIDEBAR_TITLE, RED, WHITE)
+        elif game_state == "RULES":
+            WIN.fill(BROWN)
+            draw_text(WIN, "Rules of Spanish Checkers", FONT_MENU, CREAM, WIDTH//2, 80, center=True)
+            # Vous pouvez ajouter plus de texte ici pour expliquer les règles
+            draw_text(WIN, "- Capture is mandatory.", FONT_SIDEBAR_BODY, WHITE, 100, 200)
+            draw_text(WIN, "- You must take the path that captures the MOST pieces.", FONT_SIDEBAR_BODY, WHITE, 100, 250)
+            draw_text(WIN, "- Kings (Damas) can move and capture across long diagonals.", FONT_SIDEBAR_BODY, WHITE, 100, 300)
+            draw_button(WIN, back_btn, "Back to Menu", FONT_SIDEBAR_TITLE, GREY, BLACK)
+        elif game_state == "PLAYING":
+            WIN.fill(BROWN)
+            game.update() # Gère l'animation et le dessin du plateau
+            restart_btn = draw_sidebar(WIN, game)
+            draw_board_coordinates(WIN)
+            
+            # Vérifier la condition de victoire
+            if not game.game_over and not game.is_animating():
+                game.update_winner()
+
+        pygame.display.update()
+
     pygame.quit()
+    sys.exit()
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    return os.path.join(base_path, relative_path)
-
-main()
+if __name__ == '__main__':
+    main()

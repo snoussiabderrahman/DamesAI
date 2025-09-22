@@ -9,7 +9,13 @@ class Game:
         self.win = win
         # === NOUVEAU : Variables pour gérer l'état de l'animation ===
         self.animation_data = None  # Stockera les infos du coup à animer
-        self.animation_speed = 40  # Vitesse de l'animation (plus élevé = plus rapide)
+        self.animation_speed = 20  # Vitesse de l'animation (plus élevé = plus rapide)
+
+        self.black_wins = 0
+        self.cream_wins = 0
+        self.game_over = False
+        self.winner_message = ""
+        self.ai_is_thinking = False
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -30,8 +36,7 @@ class Game:
         if not self.is_animating():
             self.draw_valid_moves(self.valid_moves)
             
-        pygame.display.update()
-
+    
     def ai_move(self, move_data):
         """
         Prépare l'animation. Cette version est robuste et gère correctement
@@ -158,10 +163,27 @@ class Game:
         self.turn = CREAM
         self.valid_moves = {}
 
+        self.game_over = False
+        self.winner_message = ""
+    
+    def update_winner(self):
+        """Vérifie s'il y a un gagnant et met à jour l'état du jeu."""
+        winner = self.board.winner(self.turn)
+        if winner is not None:
+            self.game_over = True
+            self.winner_message = winner
+            if "black" in winner.lower():
+                self.black_wins += 1
+            elif "cream" in winner.lower():
+                self.cream_wins += 1
+            return True
+        return False
+
     def winner(self, color):
         return self.board.winner(color)
 
     def reset(self):
+        """Réinitialise la partie, mais conserve les scores."""
         self._init()
     
     def _get_all_mandatory_moves_for_turn(self, color):
