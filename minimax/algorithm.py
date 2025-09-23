@@ -47,7 +47,6 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
-        # === CORRECTION : Extraire la liste des pièces sautées (comme dans NegaMax) ===
         final_skipped_list = []
         if isinstance(skipped_pieces, dict):
             # Si c'est un dictionnaire (saut de roi), on prend la liste depuis la clé 'skipped'
@@ -84,7 +83,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
         current_hash ^= zobrist_turn_black
     
     tt_entry = transposition_table.get(current_hash)
-    if tt_entry and tt_entry['depth'] >= depth:
+    if tt_entry and tt_entry['hash_key'] == current_hash and tt_entry['depth'] >= depth:
         profiler.increment_tt_hits()
         if tt_entry['flag'] == 'EXACT':
             return tt_entry['score'], tt_entry['best_move']
@@ -153,7 +152,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
         flag = 'EXACT'
 
     transposition_table[current_hash] = {
-        'score': alpha, 'depth': depth, 'flag': flag, 'best_move': best_move_data
+        'hash_key': current_hash, 'score': alpha, 'depth': depth, 'flag': flag, 'best_move': best_move_data
     }
     
     return alpha, best_move_data
