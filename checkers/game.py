@@ -1,7 +1,7 @@
 import pygame
 from .constants import CREAM, BLACK, BLUE, SQUARE_SIZE, ROWS, COLS
 from checkers.board import Board
-
+from minimax.algorithm import zobrist_turn_black
 
 class Game:
     def __init__(self, win):
@@ -14,6 +14,9 @@ class Game:
         self.game_over = False
         self.winner_message = ""
         self.ai_is_thinking = False
+        self.position_history = {} # Dictionnaire pour compter les répétitions de hash
+        self.moves_since_capture = 0
+        self.draws = 0
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -155,21 +158,35 @@ class Game:
             data['current_y'] += self.animation_speed * (dy / distance)
 
     def _finalize_animation(self):
-        """Termine l'animation et applique le coup final à l'état du jeu."""
-        if not self.animation_data:
-            return
-            
+        """Termine l'animation et met à jour l'état du jeu ET l'historique."""
+        if not self.animation_data: return
+
         piece = self.animation_data['piece']
-        # La position finale est celle de la dernière cible
         final_row = int(self.animation_data['target_y'] // SQUARE_SIZE)
         final_col = int(self.animation_data['current_x'] // SQUARE_SIZE)
         
-        # Applique réellement les changements à l'état du plateau
-        self.board.remove(self.animation_data['visually_removed'])
-        self.board.move(piece, final_row, final_col)
+        # On utilise la liste des pièces visuellement retirées
+        removed_pieces = self.animation_data.get('visually_removed', [])
+        
+        # 1. Retirer les pièces (cette fonction met à jour le hash)
+        if removed_pieces:
+            self.board.remove_and_get_skipped(removed_pieces)
+            self.moves_since_capture = 0
+        else:
+            self.moves_since_capture += 1
+            
+        # 2. Déplacer la pièce (cette fonction met à jour le hash et gère la promotion)
+        self.board.make_move(piece, final_row, final_col)
+        
         self.change_turn()
         
-        # Réinitialise l'état de l'animation
+        # Mettre à jour l'historique des positions
+        current_hash = self.board.zobrist_hash
+        if self.turn == BLACK:
+            current_hash ^= zobrist_turn_black
+        
+        self.position_history[current_hash] = self.position_history.get(current_hash, 0) + 1
+        
         self.animation_data = None
     
     def _init(self):
@@ -177,13 +194,14 @@ class Game:
         self.board = Board()
         self.turn = CREAM
         self.valid_moves = {}
-
         self.game_over = False
         self.winner_message = ""
+        self.position_history = {}
+        self.moves_since_capture = 0
     
     def update_winner(self):
         """Vérifie s'il y a un gagnant et met à jour l'état du jeu."""
-        winner = self.board.winner(self.turn)
+        winner = self.board.winner(self.turn, self.position_history, self.moves_since_capture)
         if winner is not None:
             self.game_over = True
             self.winner_message = winner
@@ -191,6 +209,8 @@ class Game:
                 self.black_wins += 1
             elif "cream" in winner.lower():
                 self.cream_wins += 1
+            elif "draw" in winner.lower():
+                self.draws += 1
             return True
         return False
 
@@ -213,7 +233,7 @@ class Game:
         for piece in self.board.get_all_pieces(color):
             valid_moves = self.board.get_valid_moves(piece)
             for move, details in valid_moves.items():
-                
+
                 # --- Extraire la VRAIE liste des pièces sautées ---
                 skipped_list = []
                 if isinstance(details, dict):

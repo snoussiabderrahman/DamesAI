@@ -142,21 +142,31 @@ class Board:
                     else:
                         self.black_left -= 1
 
-    def winner(self, color):
-        if self.black_left == 0 and self.black_kings == 1 and self.cream_left == 0 and self.cream_kings == 1:
-            return "Equal"
-        
-        pieces = self.get_all_pieces(color)
-        if not pieces: # Le joueur n'a plus de pièces
-             return "PLAYER black WINS!" if color == CREAM else "Player cream WINS!"
+    def winner(self, color_turn, position_history, moves_since_capture):
 
+        # === RÈGLES DE NULLITÉ ===
+        if moves_since_capture >= 40:
+            return "Draw by 40-move rule!"
+        
+        if any(count >= 3 for count in position_history.values()):
+            return "Draw by repetition!"
+
+        # --- Conditions de victoire/défaite ---
+        pieces = self.get_all_pieces(color_turn)
+        
+        has_moves = False
         for piece in pieces:
             if self.get_valid_moves(piece):
-                return None # Il y a au moins un coup possible
-
-        # Si on arrive ici, le joueur est bloqué
-        return "PLAYER black WINS!" if color == CREAM else "Player cream WINS!"
+                has_moves = True
+                break
         
+        if not has_moves:
+            if color_turn == CREAM:
+                return "PLAYER black WINS!"
+            else:
+                return "Player cream WINS!"
+        
+        return None
     
     def get_valid_moves(self, piece):
         moves = {}

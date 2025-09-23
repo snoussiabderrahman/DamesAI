@@ -76,7 +76,8 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
             
     return alpha
 
-def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
+def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, position_history, moves_since_capture):
+    
     alpha_orig = alpha
     current_hash = position.zobrist_hash
     if color_player == BLACK:
@@ -96,7 +97,8 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
 
     profiler.increment_nodes()
 
-    if position.winner(color_player) is not None:
+    # On passe les nouvelles infos à la fonction winner
+    if position.winner(color_player, position_history, moves_since_capture) is not None:
         return position.evaluate(color_player), None
 
     if depth == 0:
@@ -108,32 +110,41 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
     
     # --- Boucle de recherche ---
     for move_data in possible_moves:
-        # La variable est bien 'skipped_pieces' ici, comme dans votre code.
+        # La variable est bien 'skipped_pieces' ici
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
-
         
-        final_skipped_list = []
-        if isinstance(skipped_pieces, dict):
-            # Si c'est un dictionnaire, on prend la liste depuis la clé 'skipped'
-            final_skipped_list = skipped_pieces['skipped']
-        else:
-            # Sinon, c'est déjà la bonne liste (pour les pions ou les coups simples)
-            final_skipped_list = skipped_pieces
+        # --- MISE À JOUR DE L'HISTORIQUE SIMULÉ ---
+        # On met à jour l'historique et le compteur pour l'appel récursif
+        next_color = CREAM if color_player == BLACK else BLACK
         
-
+        final_skipped_list = skipped_pieces['skipped'] if isinstance(skipped_pieces, dict) else skipped_pieces
+        
+        new_moves_since_capture = 0 if final_skipped_list else moves_since_capture + 1
+        
+        # On met à jour le hash pour l'historique
+        next_hash = position.zobrist_hash
+        if next_color == BLACK:
+            next_hash ^= zobrist_turn_black
+        
+        position_history[next_hash] = position_history.get(next_hash, 0) + 1
+        
         # --- FAIRE LE COUP (MAKE MOVE) ---
-        # On utilise maintenant la liste nettoyée 'final_skipped_list'
         removed = position.remove_and_get_skipped(final_skipped_list)
         was_promoted = position.make_move(piece, end_row, end_col)
         
-        # Appel récursif
-        evaluation = -NegaMax(position, depth - 1, CREAM if color_player == BLACK else BLACK, -beta, -alpha, killer_moves, profiler)[0]
+        # Appel récursif avec l'historique mis à jour
+        evaluation = -NegaMax(position, depth - 1, next_color, -beta, -alpha, killer_moves, profiler, position_history, new_moves_since_capture)[0]
         
         # --- DÉFAIRE LE COUP (UNDO MOVE) ---
         position.undo_move(piece, start_row, start_col, was_promoted)
         position.restore_skipped(removed)
-        
+
+        # On annule la mise à jour de l'historique
+        position_history[next_hash] -= 1
+        if position_history[next_hash] == 0:
+            del position_history[next_hash]
+
         if evaluation > alpha:
             alpha = evaluation
             best_move_data = move_data
