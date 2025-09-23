@@ -17,6 +17,7 @@ class Game:
         self.position_history = {} # Dictionnaire pour compter les répétitions de hash
         self.moves_since_capture = 0
         self.draws = 0
+        self.player_color = CREAM
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -33,9 +34,15 @@ class Game:
         # On dessine le plateau. La méthode draw saura gérer l'animation.
         self.board.draw(self.win, self.animation_data)
         
-        # On dessine les coups valides pour le joueur humain.
-        if not self.is_animating():
+        # N'afficher les coups que si c'est au tour du joueur humain
+        if not self.is_animating() and not self.ai_is_thinking and self.turn == self.player_color:
             self.draw_valid_moves(self.valid_moves)
+
+    # === Pour changer la couleur du joueur ===
+    def set_player_color(self, color):
+        """Définit la couleur du joueur et réinitialise la partie."""
+        self.player_color = color
+        self.reset() # Redémarre une nouvelle partie avec les bons paramètres
             
     # === FONCTION CENTRALE POUR TOUTES LES ANIMATIONS ===
     def start_move_animation(self, piece, end_row, end_col, move_details):
