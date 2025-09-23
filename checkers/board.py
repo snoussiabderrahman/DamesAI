@@ -29,7 +29,6 @@ class Board:
         self.cream_left = self.black_left = 12
         self.cream_kings = self.black_kings = 0
         self.create_board()
-        # === Calculer le hash de la position initiale ===
         self.zobrist_hash = self.calculate_initial_hash()
     
     def calculate_initial_hash(self):
@@ -42,7 +41,7 @@ class Board:
                     h ^= zobrist_table[(piece.color, piece.king, r, c)]
         return h
     
-    # --- NOUVELLES FONCTIONS D'AIDE POUR LA MISE À JOUR DU HASH ---
+    # --- FONCTIONS D'AIDE POUR LA MISE À JOUR DU HASH ---
     def update_hash_move(self, piece, old_row, old_col, new_row, new_col):
         """Met à jour le hash pour un simple mouvement."""
         self.zobrist_hash ^= zobrist_table[(piece.color, piece.king, old_row, old_col)] # Retire l'ancienne pos
@@ -207,7 +206,7 @@ class Board:
                 if opponent_found:
                     if current_piece == 0:
                         new_skipped = skipped + [opponent_found]
-                        # === MODIFICATION : On transmet le chemin via la récursion ===
+                        # === On transmet le chemin via la récursion ===
                         continuations = self._find_king_jumps(r, c, color, new_skipped)
                         
                         if not continuations:
@@ -250,7 +249,7 @@ class Board:
                 if current_piece == 0:
                     moves[(r, c)] = [] # Case vide, mouvement valide
                 else:
-                    break # Le chemin est bloqué par une pièce
+                    break 
         return moves
 
     def traverse_left(self, start, stop, step, color, left, skipped=[]):

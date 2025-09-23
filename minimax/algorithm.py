@@ -1,9 +1,7 @@
 from checkers.constants import BLACK, CREAM, ROWS, COLS
-import pygame
 import random
 
 # --- 1. INITIALISATION DU HACHAGE ZOBRIST ET DES STRUCTURES D'OPTIMISATION ---
-
 # Table de nombres aléatoires pour le hachage
 zobrist_table = {}
 # Clés pour chaque type de pièce à chaque position
@@ -22,8 +20,6 @@ zobrist_turn_black = random.getrandbits(64)
 transposition_table = {}
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
-# minimax/algorithm.py
-
 def quiescenceSearch(board, alpha, beta, color_player, profiler):
     """
     Recherche de quiétude qui utilise maintenant le pattern Make/Undo.
@@ -82,7 +78,6 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     return alpha
 
 def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
-    # --- Début de la fonction (recherche TT, etc.) ---
     alpha_orig = alpha
     current_hash = position.zobrist_hash
     if color_player == BLACK:
@@ -118,8 +113,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
-        # === CORRECTION AVEC LE BON NOM DE VARIABLE ===
-        # On vérifie la variable 'skipped_pieces'
+        
         final_skipped_list = []
         if isinstance(skipped_pieces, dict):
             # Si c'est un dictionnaire, on prend la liste depuis la clé 'skipped'
@@ -127,7 +121,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler):
         else:
             # Sinon, c'est déjà la bonne liste (pour les pions ou les coups simples)
             final_skipped_list = skipped_pieces
-        # =================================================
+        
 
         # --- FAIRE LE COUP (MAKE MOVE) ---
         # On utilise maintenant la liste nettoyée 'final_skipped_list'
@@ -175,11 +169,9 @@ def get_possible_moves(board, color):
     if capture_moves:
         for piece, moves in capture_moves.items():
             for move, details in moves.items():
-                # === MODIFICATION : 'details' est maintenant la structure complète ===
                 moves_data.append((piece, move, details))
         return moves_data
-
-    # La logique pour les mouvements simples reste la même
+    
     for piece in board.get_all_pieces(color):
         valid_moves = board.get_valid_moves(piece)
         for move, skipped in valid_moves.items():
@@ -200,17 +192,14 @@ def get_capture_moves(board, color):
         valid_moves = board.get_valid_moves(piece)
         piece_captures = {}
         for move, details in valid_moves.items():
-            # 'details' est soit une LISTE (pion) soit un DICTIONNAIRE (roi)
-            
-            # --- NOUVELLE LOGIQUE POUR TROUVER LA LISTE DES PIÈCES SAUTÉES ---
             skipped_list = []
             if isinstance(details, dict):
                 skipped_list = details.get('skipped', [])
             else:
                 skipped_list = details
 
-            if skipped_list: # S'assurer que c'est bien une capture
-                piece_captures[move] = details # On stocke la structure de données ORIGINALE
+            if skipped_list: 
+                piece_captures[move] = details 
                 if len(skipped_list) > max_skipped_len:
                     max_skipped_len = len(skipped_list)
         
@@ -225,10 +214,9 @@ def get_capture_moves(board, color):
     for piece, moves in capture_moves.items():
         max_len_moves = {}
         for move, details in moves.items():
-            # --- NOUVELLE LOGIQUE POUR VÉRIFIER LA LONGUEUR ---
             skipped_list = details['skipped'] if isinstance(details, dict) else details
             if len(skipped_list) == max_skipped_len:
-                max_len_moves[move] = details # On garde la structure ORIGINALE
+                max_len_moves[move] = details 
         
         if max_len_moves:
             final_captures[piece] = max_len_moves
@@ -242,6 +230,4 @@ def extract_max_jumps(moves):
         return max_jump_moves
     else:
         return {}
-
-
 

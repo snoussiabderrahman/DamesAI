@@ -1,13 +1,11 @@
 # main.py
 
 import pygame
-from checkers.constants import * # Importer toutes les constantes
+from checkers.constants import *
 from checkers.game import Game
 from minimax.algorithm import NegaMax, transposition_table
 from minimax.profiler import AIProfiler
-import time
 import sys
-import os
 import threading
 from copy import deepcopy
 
@@ -16,10 +14,9 @@ pygame.display.set_caption('DamesAI')
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 
 FPS = 60
-SEARCH_DEPTH = 8
+SEARCH_DEPTH = 10
 
 # --- Fonctions d'aide pour le dessin ---
-
 def draw_text(surface, text, font, color, x, y, center=False):
     """Fonction générique pour dessiner du texte."""
     text_surface = font.render(text, True, color)
@@ -40,14 +37,12 @@ def draw_sidebar(surface, game):
     sidebar_rect = pygame.Rect(BOARD_WIDTH, 0, SIDEBAR_WIDTH, HEIGHT)
     pygame.draw.rect(surface, BROWN, sidebar_rect)
 
-    # === MODIFICATION : Utiliser la nouvelle constante pour la largeur ===
     separator_rect = pygame.Rect(BOARD_WIDTH - SEPARATOR_WIDTH, 0, SEPARATOR_WIDTH, HEIGHT)
     pygame.draw.rect(surface, DARK_GREY, separator_rect)
-    # ===============================================
 
     # Titre du score
     draw_text(surface, "Score", FONT_SIDEBAR_TITLE, CREAM, BOARD_WIDTH + 150, 50, center=True)
-    # ... (le reste de la fonction reste le même) ...
+
     # Scores
     draw_text(surface, f"Cream (You): {game.cream_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 120, center=True)
     draw_text(surface, f"Black (AI): {game.black_wins}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 170, center=True)
@@ -77,7 +72,6 @@ def draw_board_coordinates(surface):
     """
     # Une petite marge pour ne pas coller le texte aux bords
     padding = 5 
-
     for i in range(8):
         # --- Nombres (1-8) : dans le coin SUPÉRIEUR GAUCHE de chaque case de la première colonne ---
         # On calcule la coordonnée Y en haut de la case `i` + un petit padding
@@ -93,7 +87,7 @@ def draw_board_coordinates(surface):
         y_coord_bottom = HEIGHT - FONT_COORDS.get_height() - padding
         draw_text(surface, chr(ord('a') + i), FONT_COORDS, DARK_GREY, x_coord, y_coord_bottom, center=False)
 
-# --- NOUVEAU : Fonction wrapper pour le calcul de l'IA ---
+# --- Fonction wrapper pour le calcul de l'IA ---
 def run_ai_calculation(board_to_search, killer_moves, profiler, result_container):
     """
     Cette fonction sera exécutée dans un thread séparé sur une COPIE du plateau.
@@ -103,7 +97,6 @@ def run_ai_calculation(board_to_search, killer_moves, profiler, result_container
     
     transposition_table.clear()
     
-    # === CORRECTION : Appel à NegaMax avec la bonne signature (6 arguments) ===
     # On utilise 'board_to_search' et on a retiré 'game' (qui était None)
     value, best_move_data = NegaMax(board_to_search, SEARCH_DEPTH, BLACK, float("-inf"), float("inf"), killer_moves, profiler)
     # =======================================================================
@@ -115,7 +108,6 @@ def run_ai_calculation(board_to_search, killer_moves, profiler, result_container
     result_container.append(best_move_data)
 
 # --- Boucle Principale ---
-
 def main():
     run = True
     clock = pygame.time.Clock()
@@ -175,9 +167,8 @@ def main():
                 game.ai_is_thinking = True
                 ai_result = []
                 
-                # === CORRECTION CRUCIALE : S'assurer de copier le PLATEAU, pas le JEU ===
+                # === S'assurer de copier le PLATEAU, pas le JEU ===
                 board_copy = deepcopy(game.get_board())
-                # ===================================================================
 
                 # On passe la COPIE DU PLATEAU au thread
                 ai_thread = threading.Thread(target=run_ai_calculation, args=(board_copy, killer_moves, profiler, ai_result))
@@ -190,7 +181,6 @@ def main():
                 else: # L'IA n'a pas de coup
                     game.update_winner()
                 ai_thread = None # Réinitialiser le thread pour le prochain tour
-        # =======================================================
         
         # Logique de dessin
         if game_state == "MAIN_MENU":
@@ -202,7 +192,6 @@ def main():
         elif game_state == "RULES":
             WIN.fill(BROWN)
             draw_text(WIN, "Rules of Spanish Checkers", FONT_MENU, CREAM, WIDTH//2, 80, center=True)
-            # Vous pouvez ajouter plus de texte ici pour expliquer les règles
             draw_text(WIN, "- Capture is mandatory.", FONT_SIDEBAR_BODY, WHITE, 100, 200)
             draw_text(WIN, "- You must take the path that captures the MOST pieces.", FONT_SIDEBAR_BODY, WHITE, 100, 250)
             draw_text(WIN, "- Kings (Damas) can move and capture across long diagonals.", FONT_SIDEBAR_BODY, WHITE, 100, 300)

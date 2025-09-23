@@ -7,10 +7,8 @@ class Game:
     def __init__(self, win):
         self._init()
         self.win = win
-        # === NOUVEAU : Variables pour gérer l'état de l'animation ===
         self.animation_data = None  # Stockera les infos du coup à animer
         self.animation_speed = 15  # Vitesse de l'animation (plus élevé = plus rapide)
-
         self.black_wins = 0
         self.cream_wins = 0
         self.game_over = False
@@ -36,7 +34,7 @@ class Game:
         if not self.is_animating():
             self.draw_valid_moves(self.valid_moves)
             
-    # === NOUVELLE FONCTION CENTRALE POUR TOUTES LES ANIMATIONS ===
+    # === FONCTION CENTRALE POUR TOUTES LES ANIMATIONS ===
     def start_move_animation(self, piece, end_row, end_col, move_details):
         """
         Prépare et lance l'animation pour n'importe quel coup (IA ou joueur).
@@ -379,6 +377,4 @@ class Game:
     
     def get_configuration(self):
         return self.board.get_board()
-
-    
 
