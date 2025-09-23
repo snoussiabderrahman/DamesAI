@@ -59,6 +59,9 @@ def draw_sidebar(surface, game):
     # === Section pour le choix de la couleur ===
     draw_text(surface, "Play As:", FONT_SIDEBAR_TITLE, WHITE, BOARD_WIDTH + 150, 300, center=True)
 
+    copyright_text = "© 2025 Votre SNOUSSI ABDERRAHMANE"
+    draw_text(surface, copyright_text, FONT_COPYRIGHT, WHITE, BOARD_WIDTH + 150, HEIGHT - 20, center=True)
+
     # Bouton de choix "Cream"
     cream_choice_rect = pygame.Rect(BOARD_WIDTH + 25, 340, 120, 40)
     cream_bg = GREEN if game.player_color == CREAM else GREY
@@ -112,16 +115,16 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler, result
     """
     Cette fonction sera exécutée dans un thread séparé sur une COPIE du plateau.
     """
-    profiler.reset()
-    profiler.start_timer()
+    #profiler.reset()
+    #profiler.start_timer()
     transposition_table.clear()
     
     # Lancer la recherche NegaMax
     value, best_move_data = NegaMax(board_to_search, SEARCH_DEPTH, ai_color, float("-inf"), float("inf"), killer_moves, profiler, position_history, moves_since_capture)
     
-    profiler.stop_timer()
-    profiler.set_tt_size(len(transposition_table))
-    profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+    #profiler.stop_timer()
+    #profiler.set_tt_size(len(transposition_table))
+    #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
     result_container.append(best_move_data)
 
 # --- Boucle Principale ---
@@ -216,6 +219,9 @@ def main():
             draw_button(WIN, start_btn, "Start Game", FONT_SIDEBAR_TITLE, GREEN, BLACK)
             draw_button(WIN, rules_btn, "Rules", FONT_SIDEBAR_TITLE, BLUE, WHITE)
             draw_button(WIN, exit_btn, "Exit", FONT_SIDEBAR_TITLE, RED, WHITE)
+            # REMPLACEZ "Votre Nom Prénom" par votre vrai nom !
+            copyright_text = "© 2025 Votre SNOUSSI ABDERRAHMANE. All rights reserved."
+            draw_text(WIN, copyright_text, FONT_COPYRIGHT, WHITE, WIDTH//2, HEIGHT - 20, center=True)
         elif game_state == "RULES":
             WIN.fill(BROWN)
             draw_text(WIN, "Rules of Spanish Checkers", FONT_MENU, CREAM, WIDTH//2, 80, center=True)

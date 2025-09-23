@@ -39,6 +39,7 @@ FONT_MENU = pygame.font.SysFont("comicsans", 70)
 FONT_SIDEBAR_TITLE = pygame.font.SysFont("comicsans", 30)
 FONT_SIDEBAR_BODY = pygame.font.SysFont("comicsans", 20)
 FONT_COORDS = pygame.font.SysFont("sans", 20)
+FONT_COPYRIGHT = pygame.font.SysFont("sans", 14)
 # ==================================
 
 CROWN_PATH = resource_path('assets/crown.png')
