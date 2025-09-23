@@ -200,34 +200,43 @@ class Game:
     def reset(self):
         """Réinitialise la partie, mais conserve les scores."""
         self._init()
-    
+
     def _get_all_mandatory_moves_for_turn(self, color):
         """
         Analyse tout le plateau et retourne UNIQUEMENT les coups qui
-        respectent la règle de la capture maximale.
-        Retourne une liste de descriptions de coups : [(piece, move, skipped), ...].
+        respectent la règle de la capture maximale. (Version finale et corrigée)
         """
         all_capture_moves = []
         max_skipped_len = 0
 
-        # 1. Trouver toutes les captures possibles et le nombre maximum de sauts
+        # Étape 1 : Collecter toutes les captures et trouver la VRAIE longueur maximale
         for piece in self.board.get_all_pieces(color):
             valid_moves = self.board.get_valid_moves(piece)
-            for move, skipped in valid_moves.items():
-                if skipped:
-                    all_capture_moves.append((piece, move, skipped))
-                    if len(skipped) > max_skipped_len:
-                        max_skipped_len = len(skipped)
+            for move, details in valid_moves.items():
+                
+                # --- Extraire la VRAIE liste des pièces sautées ---
+                skipped_list = []
+                if isinstance(details, dict):
+                    skipped_list = details.get('skipped', [])
+                elif isinstance(details, list) and details:
+                    skipped_list = details
+
+                if skipped_list: # Si c'est bien une capture
+                    all_capture_moves.append((piece, move, details))
+                    # On utilise la longueur de la VRAIE liste pour trouver le max
+                    if len(skipped_list) > max_skipped_len:
+                        max_skipped_len = len(skipped_list)
         
-        # 2. S'il n'y a aucune capture, retourner une liste vide
         if not all_capture_moves:
             return []
 
-        # 3. Filtrer pour ne garder que les coups qui capturent le maximum de pièces
-        final_mandatory_moves = [
-            move_info for move_info in all_capture_moves 
-            if len(move_info[2]) == max_skipped_len
-        ]
+        # Étape 2 : Filtrer pour ne garder que les coups de la VRAIE longueur maximale
+        final_mandatory_moves = []
+        for p, m, details in all_capture_moves:
+            # On extrait à nouveau la VRAIE liste pour la comparaison
+            skipped_list = details.get('skipped', []) if isinstance(details, dict) else details
+            if len(skipped_list) == max_skipped_len:
+                final_mandatory_moves.append((p, m, details))
         
         return final_mandatory_moves
 
