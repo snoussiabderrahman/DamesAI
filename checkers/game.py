@@ -42,6 +42,7 @@ class Game:
     def set_player_color(self, color):
         """Définit la couleur du joueur et réinitialise la partie."""
         self.player_color = color
+        self.black_wins, self.cream_wins = self.cream_wins, self.black_wins
         self.reset() # Redémarre une nouvelle partie avec les bons paramètres
             
     # === FONCTION CENTRALE POUR TOUTES LES ANIMATIONS ===

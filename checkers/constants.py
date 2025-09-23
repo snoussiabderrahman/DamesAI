@@ -36,8 +36,8 @@ DARK_GREY = (40, 40, 40)
 
 # Polices pour le texte
 FONT_MENU = pygame.font.SysFont("comicsans", 70)
-FONT_SIDEBAR_TITLE = pygame.font.SysFont("comicsans", 40)
-FONT_SIDEBAR_BODY = pygame.font.SysFont("comicsans", 30)
+FONT_SIDEBAR_TITLE = pygame.font.SysFont("comicsans", 30)
+FONT_SIDEBAR_BODY = pygame.font.SysFont("comicsans", 20)
 FONT_COORDS = pygame.font.SysFont("sans", 20)
 # ==================================
 

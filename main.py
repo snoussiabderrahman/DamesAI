@@ -71,8 +71,8 @@ def draw_sidebar(surface, game):
 
     # Affichage du gagnant / message de l'IA
     if game.game_over:
-        draw_text(surface, "Game Over!", FONT_SIDEBAR_TITLE, RED, BOARD_WIDTH + 150, 300, center=True)
-        draw_text(surface, game.winner_message, FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 350, center=True)
+        draw_text(surface, "Game Over!", FONT_SIDEBAR_TITLE, RED, BOARD_WIDTH + 150, 425, center=True)
+        draw_text(surface, game.winner_message, FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 475, center=True)
     elif game.ai_is_thinking:
         draw_text(surface, "AI is thinking...", FONT_SIDEBAR_BODY, CREAM, BOARD_WIDTH + 150, 450, center=True)
 
