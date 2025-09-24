@@ -84,7 +84,11 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
         current_hash ^= zobrist_turn_black
     
     tt_entry = transposition_table.get(current_hash)
-    if tt_entry and tt_entry['hash_key'] == current_hash and tt_entry['depth'] >= depth:
+    if (
+        tt_entry
+        and tt_entry["depth"] >= depth
+        and tt_entry["position_repr"] == position.__repr__()
+    ):
         profiler.increment_tt_hits()
         if tt_entry['flag'] == 'EXACT':
             return tt_entry['score'], tt_entry['best_move']
@@ -163,7 +167,11 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
         flag = 'EXACT'
 
     transposition_table[current_hash] = {
-        'hash_key': current_hash, 'score': alpha, 'depth': depth, 'flag': flag, 'best_move': best_move_data
+        "score": alpha,
+        "depth": depth,
+        "flag": flag,
+        "best_move": best_move_data,
+        "position_repr": position.__repr__(),
     }
     
     return alpha, best_move_data
