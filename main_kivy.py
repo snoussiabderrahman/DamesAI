@@ -10,6 +10,8 @@ from kivy.clock import mainthread
 import threading
 from copy import deepcopy
 from minimax.algorithm import NegaMax, transposition_table
+from kivy.animation import Animation
+from kivy.clock import Clock
 
 # Importer votre logique de jeu existante
 from checkers.game import Game
@@ -50,6 +52,8 @@ class DamesApp(App):
     def build(self):
         # Initialiser votre moteur de jeu
         self.game = Game(None) # On passe None car on n'a plus besoin de 'win'
+        self.piece_widgets = {} # Dictionnaire pour suivre les widgets des pièces
+        self.update_board_ui()
         self.root = RootWidget()
         
         # Créer et ajouter les 8x8 cases au GridLayout
@@ -80,6 +84,7 @@ class DamesApp(App):
                     Color(*(piece.color)) # Utiliser la couleur de la pièce
                     Ellipse(size=piece_widget.size, pos=piece_widget.pos)
                 square.add_widget(piece_widget)
+                self.piece_widgets[(row, col)] = piece_widget
 
                 # Ajouter la couronne si c'est un roi
                 if piece.king:
@@ -87,13 +92,59 @@ class DamesApp(App):
                     square.add_widget(crown_widget)
 
     def handle_square_click(self, row, col):
-        # C'est ici que vous appelez votre logique de jeu existante
-        self.game.select(row, col)
-        # Après chaque action, mettez à jour l'interface
-        self.update_board_ui() 
-        # Mettez aussi à jour les labels de la sidebar
+        # Sauvegarder la position de départ de la pièce sélectionnée
+        start_pos = (self.game.selected.row, self.game.selected.col) if self.game.selected else None
+        
+        # Exécuter la logique du jeu
+        skipped_pieces, moved_piece, end_pos = self.game._move(row, col)
+        
+        if moved_piece: # Si un coup valide a été joué
+            # Lancer l'animation
+            self.animate_piece(start_pos, end_pos, skipped_pieces)
+        else:
+            # Si le clic n'a pas abouti à un coup, il a peut-être changé la sélection
+            # On met simplement l'UI à jour (pour les cercles bleus, etc.)
+            self.update_board_ui()
     
-        self.update_sidebar_ui()
+    def animate_piece(self, start_pos, end_pos, skipped_pieces):
+        """
+        Gère l'animation d'un coup sur l'interface Kivy.
+        """
+        start_row, start_col = start_pos
+        end_row, end_col = end_pos
+        
+        # Retrouver le widget de la pièce qui bouge
+        moving_widget = self.piece_widgets.pop(start_pos, None)
+        if not moving_widget: return
+
+        # Retrouver le widget de la case de destination
+        target_square_widget = self.root.ids.board_layout.children[-(end_row * 8 + end_col + 1)]
+        
+        # Créer l'animation
+        anim = Animation(pos=target_square_widget.pos, duration=0.3)
+        
+        def on_animation_complete(animation_instance, widget_instance):
+            # Une fois l'animation terminée, on met à jour toute l'interface
+            # pour que tout soit parfaitement synchronisé avec la logique du jeu.
+            self.update_board_ui()
+            # On peut aussi vérifier le tour de l'IA ici
+            self.check_for_ai_move()
+
+        anim.bind(on_complete=on_animation_complete)
+        
+        # Mettre à jour notre dictionnaire de suivi
+        self.piece_widgets[end_pos] = moving_widget
+        
+        # Cacher les pièces capturées immédiatement
+        if skipped_pieces:
+            for piece in skipped_pieces:
+                skipped_widget = self.piece_widgets.pop((piece.row, piece.col), None)
+                if skipped_widget:
+                    skipped_widget.parent.remove_widget(skipped_widget)
+
+        # Lancer l'animation
+        anim.start(moving_widget)
+    
     def check_for_ai_move(self):
         # Cette fonction sera appelée régulièrement pour lancer l'IA
         ai_color = BLACK if self.game.player_color == CREAM else CREAM
@@ -128,7 +179,14 @@ class DamesApp(App):
         # Cette fonction est garantie de s'exécuter sur le thread principal de Kivy
         self.ai_is_thinking = False
         if best_move_data:
-            self.game.ai_move(best_move_data) # Ceci va lancer l'animation
+            piece_from_copy, (end_row, end_col), move_details = best_move_data
+            start_pos = (piece_from_copy.row, piece_from_copy.col)
+            
+            # Exécuter la logique de l'IA
+            skipped, moved_piece, end_pos = self.game.ai_move(best_move_data)
+
+            # Lancer l'animation:
+            self.animate_piece(start_pos, end_pos, skipped)
         
         # On met à jour l'UI après le coup
         self.update_board_ui()
