@@ -6,10 +6,16 @@ from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.uix.image import Image
+from kivy.clock import mainthread
+import threading
+from copy import deepcopy
+from minimax.algorithm import NegaMax, transposition_table
 
 # Importer votre logique de jeu existante
 from checkers.game import Game
-from checkers.constants import BROWN, CREAM, BLACK # Et les autres couleurs
+from checkers.constants import BROWN, CREAM, BLACK 
+
+SEARCH_DEPTH = 8
 
 # Créer un widget pour représenter une case du plateau
 class SquareWidget(RelativeLayout):
@@ -79,14 +85,54 @@ class DamesApp(App):
                 if piece.king:
                     crown_widget = Image(source='assets/crown.png', size_hint=(0.5, 0.5), pos_hint={'center_x': 0.5, 'center_y': 0.5})
                     square.add_widget(crown_widget)
-        
-        def handle_square_click(self, row, col):
-            # C'est ici que vous appelez votre logique de jeu existante
-            self.game.select(row, col)
-            # Après chaque action, mettez à jour l'interface
-            self.update_board_ui() 
-            # Mettez aussi à jour les labels de la sidebar
+
+    def handle_square_click(self, row, col):
+        # C'est ici que vous appelez votre logique de jeu existante
+        self.game.select(row, col)
+        # Après chaque action, mettez à jour l'interface
+        self.update_board_ui() 
+        # Mettez aussi à jour les labels de la sidebar
+    
+        self.update_sidebar_ui()
+    def check_for_ai_move(self):
+        # Cette fonction sera appelée régulièrement pour lancer l'IA
+        ai_color = BLACK if self.game.player_color == CREAM else CREAM
+        if self.game.turn == ai_color and not self.ai_is_thinking:
+            self.ai_is_thinking = True
             self.update_sidebar_ui()
+            
+            # Lancer le calcul dans un thread
+            board_copy = deepcopy(self.game.get_board())
+            # ...
+            threading.Thread(target=self.run_ai_calculation, args=(...)).start()
+    
+    # --- Fonction wrapper pour le calcul de l'IA ---
+    def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler, result_container, position_history, moves_since_capture):
+        """
+        Cette fonction sera exécutée dans un thread séparé sur une COPIE du plateau.
+        """
+        #profiler.reset()
+        #profiler.start_timer()
+        transposition_table.clear()
+        
+        # Lancer la recherche NegaMax
+        value, best_move_data = NegaMax(board_to_search, SEARCH_DEPTH, ai_color, float("-inf"), float("inf"), killer_moves, profiler, position_history, moves_since_capture)
+        
+        #profiler.stop_timer()
+        #profiler.set_tt_size(len(transposition_table))
+        #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+        result_container.append(best_move_data)
+    
+    @mainthread
+    def on_ai_calculation_complete(self, best_move_data):
+        # Cette fonction est garantie de s'exécuter sur le thread principal de Kivy
+        self.ai_is_thinking = False
+        if best_move_data:
+            self.game.ai_move(best_move_data) # Ceci va lancer l'animation
+        
+        # On met à jour l'UI après le coup
+        self.update_board_ui()
+        self.update_sidebar_ui()
 
 if __name__ == '__main__':
     DamesApp().run()
