@@ -28,6 +28,13 @@ class SquareWidget(RelativeLayout):
     def _update_rect(self, instance, value):
         self.rect.pos = instance.pos
         self.rect.size = instance.size
+    
+    def on_touch_down(self, touch):
+        if self.collide_point(*touch.pos):
+            # Appeler une fonction dans l'application principale
+            App.get_running_app().handle_square_click(self.row, self.col)
+            return True
+        return super().on_touch_down(touch)
 
 # Le widget racine de notre application
 class RootWidget(BoxLayout):
@@ -72,6 +79,14 @@ class DamesApp(App):
                 if piece.king:
                     crown_widget = Image(source='assets/crown.png', size_hint=(0.5, 0.5), pos_hint={'center_x': 0.5, 'center_y': 0.5})
                     square.add_widget(crown_widget)
+        
+        def handle_square_click(self, row, col):
+            # C'est ici que vous appelez votre logique de jeu existante
+            self.game.select(row, col)
+            # Après chaque action, mettez à jour l'interface
+            self.update_board_ui() 
+            # Mettez aussi à jour les labels de la sidebar
+            self.update_sidebar_ui()
 
 if __name__ == '__main__':
     DamesApp().run()
