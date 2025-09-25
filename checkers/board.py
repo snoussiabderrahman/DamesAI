@@ -30,7 +30,12 @@ class Board:
         self.cream_kings = self.black_kings = 0
         self.create_board()
         self.zobrist_hash = self.calculate_initial_hash()
-    
+
+    def __repr__(self) -> str:
+        return "\n".join(
+            [" ".join([piece.__repr__() for piece in row]) for row in self.board]
+        )
+
     def calculate_initial_hash(self):
         """Calcule le hash Zobrist pour la position de départ."""
         h = 0
