@@ -402,8 +402,7 @@ class Game:
                 self.init_number_moves(color)
             else:
                 self.add_number_moves(color)
-            
-
+    
     # Function to store game state
     def get_state(self):
         # Return current game state as a tuple
