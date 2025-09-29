@@ -40,21 +40,48 @@ def draw_sidebar(surface, game):
     separator_rect = pygame.Rect(BOARD_WIDTH - SEPARATOR_WIDTH, 0, SEPARATOR_WIDTH, HEIGHT)
     pygame.draw.rect(surface, DARK_GREY, separator_rect)
 
-    # Titre du score
-    draw_text(surface, "Score", FONT_SIDEBAR_TITLE, WHITE, BOARD_WIDTH + 150, 50, center=True)
+    # === Section pour l'analyse de l'IA  ===
+    ai_analysis_y_start = 0
+    
+    # Position de départ pour les étiquettes et les barres
+    label_x = BOARD_WIDTH + 20
+    bar_x = BOARD_WIDTH + 100
+    value_x = BOARD_WIDTH + 130
+    bar_size = (16, 14)
+
+    # 1. Profondeur (Depth)
+    y_depth = ai_analysis_y_start + 20
+    draw_text(surface, "DEPTH", FONT_AI_STATS_LABEL, AI_GREEN, label_x, y_depth)
+    pygame.draw.rect(surface, AI_GREEN, (bar_x, y_depth, bar_size[0], bar_size[1]))
+    draw_text(surface, str(game.last_ai_depth), FONT_AI_STATS_VALUE, AI_GREEN, value_x, y_depth)
+
+    # 2. Score
+    y_score = y_depth + 20
+    draw_text(surface, "SCORE", FONT_AI_STATS_LABEL, AI_BLUE, label_x, y_score)
+    pygame.draw.rect(surface, AI_BLUE, (bar_x, y_score, bar_size[0], bar_size[1]))
+    draw_text(surface, f"{game.last_ai_score:.2f}", FONT_AI_STATS_VALUE, AI_BLUE, value_x, y_score)
+
+    # 3. Temps (Time)
+    y_time = y_score + 20
+    draw_text(surface, "TIME", FONT_AI_STATS_LABEL, AI_GREY, label_x, y_time)
+    pygame.draw.rect(surface, AI_GREY, (bar_x, y_time, bar_size[0], bar_size[1]))
+    time_s = float(game.last_ai_time)
+    draw_text(surface, f"{time_s:.2f}s", FONT_AI_STATS_VALUE, AI_GREY, value_x, y_time)
+    # =======================================================================
 
     # Scores (maintenant dynamiques en fonction du choix du joueur)
     you_color_str = "Cream" if game.player_color == CREAM else "Black"
     ai_color_str = "Black" if game.player_color == CREAM else "Cream"
+    y_you = 120
     draw_text(surface, 
               f"{you_color_str} (You): {game.cream_wins if you_color_str == 'Cream' else game.black_wins}", 
-              FONT_SIDEBAR_BODY, CREAM if you_color_str == "Cream" else BLACK, BOARD_WIDTH + 150, 120, center=True)
-    
+              FONT_SIDEBAR_BODY, CREAM if you_color_str == "Cream" else BLACK, BOARD_WIDTH + 150, y_you, center=True)
+    y_ai = y_you + 30
     draw_text(surface, 
               f"{ai_color_str} (AI): {game.black_wins if ai_color_str == 'Black' else game.cream_wins}", 
-              FONT_SIDEBAR_BODY, BLACK if ai_color_str == "Black" else CREAM, BOARD_WIDTH + 150, 170, center=True)
-
-    draw_text(surface, f"Draws: {game.draws}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, 220, center=True)
+              FONT_SIDEBAR_BODY, BLACK if ai_color_str == "Black" else CREAM, BOARD_WIDTH + 150, y_ai, center=True)
+    y_draw = y_ai + 30
+    draw_text(surface, f"Draws: {game.draws}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, y_draw, center=True)
 
     # === Section pour le choix de la couleur ===
     draw_text(surface, "Play As:", FONT_SIDEBAR_TITLE, WHITE, BOARD_WIDTH + 150, 300, center=True)
@@ -125,7 +152,7 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler, result
     #profiler.stop_timer()
     #profiler.set_tt_size(len(transposition_table))
     #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
-    result_container.append(best_move_data)
+    result_container.append((value, best_move_data))
 
 # --- Boucle Principale ---
 def main():
@@ -196,7 +223,9 @@ def main():
                 ai_result = []
                 board_copy = deepcopy(game.get_board())
                 
-                # On passe la couleur de l'IA au thread
+                profiler.reset()
+                profiler.start_timer()
+                
                 ai_thread = threading.Thread(target=run_ai_calculation, args=(
                     board_copy, ai_color, killer_moves, profiler, ai_result, 
                     game.position_history.copy(), game.moves_since_capture
@@ -205,8 +234,23 @@ def main():
             
             elif not ai_thread.is_alive():
                 game.ai_is_thinking = False
+
+                # === Arrêter le profiler et stocker les résultats ===
+                profiler.stop_timer()
+                profiler.set_tt_size(len(transposition_table))
+
                 if ai_result:
-                    best_move_data = ai_result[0]
+                    # On récupère le score ET le coup
+                    value, best_move_data = ai_result[0]
+                    
+                    # On stocke les résultats dans l'objet game pour l'affichage
+                    game.last_ai_depth = SEARCH_DEPTH
+                    game.last_ai_score = value
+                    game.last_ai_time = profiler.total_time
+                    
+                    # On affiche les résultats détaillés dans la console (facultatif)
+                    profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+
                     game.ai_move(best_move_data)
                 else: # L'IA n'a pas de coup
                     game.update_winner()

@@ -33,6 +33,9 @@ WHITE = (255, 255, 255)
 RED = (200, 0, 0)
 GREEN = (0, 200, 0)
 DARK_GREY = (40, 40, 40)
+AI_GREEN = (34, 177, 76)
+AI_BLUE = (112, 146, 190)
+AI_GREY = (180, 180, 180)
 
 # Polices pour le texte
 FONT_MENU = pygame.font.SysFont("comicsans", 70)
@@ -40,6 +43,8 @@ FONT_SIDEBAR_TITLE = pygame.font.SysFont("comicsans", 30)
 FONT_SIDEBAR_BODY = pygame.font.SysFont("comicsans", 20)
 FONT_COORDS = pygame.font.SysFont("sans", 20)
 FONT_COPYRIGHT = pygame.font.SysFont("sans", 14)
+FONT_AI_STATS_LABEL = pygame.font.SysFont("consolas", 20, bold=True)
+FONT_AI_STATS_VALUE = pygame.font.SysFont("consolas", 20)
 # ==================================
 
 CROWN_PATH = resource_path('assets/crown.png')

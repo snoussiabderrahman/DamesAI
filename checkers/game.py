@@ -18,6 +18,9 @@ class Game:
         self.moves_since_capture = 0
         self.draws = 0
         self.player_color = CREAM
+        self.last_ai_depth = 0
+        self.last_ai_score = 0.0
+        self.last_ai_time = 0.0
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -211,6 +214,9 @@ class Game:
         self.winner_message = ""
         self.position_history = {}
         self.moves_since_capture = 0
+        self.last_ai_depth = 0
+        self.last_ai_score = 0.0
+        self.last_ai_time = 0.0
     
     def update_winner(self):
         """Vérifie s'il y a un gagnant et met à jour l'état du jeu."""
