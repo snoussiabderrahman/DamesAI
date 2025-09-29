@@ -41,6 +41,11 @@ class Game:
     # === Pour changer la couleur du joueur ===
     def set_player_color(self, color):
         """Définit la couleur du joueur et réinitialise la partie."""
+        # Si le joueur clique sur la couleur qu'il a déjà, on ne fait rien.
+        # Cela évite de réinitialiser la partie accidentellement.
+        if self.player_color == color:
+            return
+        
         self.player_color = color
         self.black_wins, self.cream_wins = self.cream_wins, self.black_wins
         self.reset() # Redémarre une nouvelle partie avec les bons paramètres
