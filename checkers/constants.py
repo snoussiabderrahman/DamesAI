@@ -20,6 +20,11 @@ WIDTH, HEIGHT = BOARD_WIDTH + SIDEBAR_WIDTH, BOARD_WIDTH  # Nouvelle largeur : 1
 SEPARATOR_WIDTH = 4
 # ===================================================================
 
+# === Scores pour les états terminaux du jeu ===
+WIN_SCORE = 10000
+LOSS_SCORE = -10000
+DRAW_SCORE = 0
+
 ROWS, COLS = 8, 8
 SQUARE_SIZE = BOARD_WIDTH // COLS # Le carré est basé sur la taille du plateau, pas de la fenêtre
 

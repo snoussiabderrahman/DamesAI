@@ -1,5 +1,7 @@
-from checkers.constants import BLACK, CREAM, ROWS, COLS
+from checkers.constants import BLACK, CREAM, ROWS, COLS, LOSS_SCORE, DRAW_SCORE
 import random
+
+SEARCH_DEPTH = 8
 
 # --- 1. INITIALISATION DU HACHAGE ZOBRIST ET DES STRUCTURES D'OPTIMISATION ---
 # Table de nombres aléatoires pour le hachage
@@ -77,6 +79,31 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
     return alpha
 
 def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, position_history, moves_since_capture):
+
+    # === Détection d'un état de victoire/défaite certain ===
+    # 1. Vérifier les conditions de nullité en premier
+    # Règle de la triple répétition ou règle des 40 coups
+    if any(count >= 3 for count in position_history.values()) or moves_since_capture >= 40:
+        return DRAW_SCORE, None
+
+    # 2. Vérifier si le joueur actuel a des coups à jouer
+    # C'est la vérification la plus importante pour la victoire/défaite
+    has_moves = False
+    for piece in position.get_all_pieces(color_player):
+        if position.get_valid_moves(piece):
+            has_moves = True
+            break
+            
+    if not has_moves:
+        # Si le joueur actuel (`color_player`) n'a aucun mouvement, il a perdu.
+        # C'est donc un score de défaite pour ce nœud de l'arbre.
+        # On ajoute la profondeur pour que l'IA essaie de retarder la défaite au maximum.
+        return LOSS_SCORE + (SEARCH_DEPTH - depth), None
+
+    # Si la profondeur est nulle, on retourne l'évaluation heuristique.
+    if depth == 0:
+        q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler)
+        return q_eval, None
     
     alpha_orig = alpha
     current_hash = position.zobrist_hash
@@ -104,10 +131,6 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
     # On passe les nouvelles infos à la fonction winner
     if position.winner(color_player, position_history, moves_since_capture) is not None:
         return position.evaluate(color_player), None
-
-    if depth == 0:
-        q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler)
-        return q_eval, None
     
     best_move_data = None
     possible_moves = get_possible_moves(position, color_player)

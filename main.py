@@ -3,18 +3,19 @@
 import pygame
 from checkers.constants import *
 from checkers.game import Game
-from minimax.algorithm import NegaMax, transposition_table
+from minimax.algorithm import NegaMax, transposition_table, SEARCH_DEPTH
 from minimax.profiler import AIProfiler
 import sys
 import threading
 from copy import deepcopy
+import math
 
 # --- Configuration de la fenêtre et des polices ---
 pygame.display.set_caption('DamesAI')
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 
 FPS = 60
-SEARCH_DEPTH = 8
+
 
 # --- Fonctions d'aide pour le dessin ---
 def draw_text(surface, text, font, color, x, y, center=False):
@@ -59,7 +60,30 @@ def draw_sidebar(surface, game):
     y_score = y_depth + 20
     draw_text(surface, "SCORE", FONT_AI_STATS_LABEL, AI_BLUE, label_x, y_score)
     pygame.draw.rect(surface, AI_BLUE, (bar_x, y_score, bar_size[0], bar_size[1]))
-    draw_text(surface, f"{game.last_ai_score:.2f}", FONT_AI_STATS_VALUE, AI_BLUE, value_x, y_score)
+    
+    score_text = ""
+    score_val = game.last_ai_score
+
+    # On vérifie si le score est un score de victoire/défaite certain
+    if score_val > WIN_SCORE / 2:
+        # Calcul du nombre de demi-coups écoulés depuis l'analyse
+        plies_elapsed = game.move_counter - game.calculation_move_counter
+        # Calcul du nombre de demi-coups restants
+        current_plies = game.last_ai_plies_to_win - plies_elapsed
+        
+        score_text = f"win in {current_plies}"
+
+    elif score_val < LOSS_SCORE / 2:
+        plies_elapsed = game.move_counter - game.calculation_move_counter
+        current_plies = game.last_ai_plies_to_win - plies_elapsed
+
+        score_text = f"loss in {current_plies}"
+    else:
+        # Sinon, c'est un score heuristique normal
+        score_text = f"{score_val:.2f}"
+    
+    draw_text(surface, score_text, FONT_AI_STATS_VALUE, AI_BLUE, value_x, y_score)
+    # ----------------------------------------------------------------
 
     # 3. Temps (Time)
     y_time = y_score + 20
@@ -83,11 +107,23 @@ def draw_sidebar(surface, game):
     y_draw = y_ai + 30
     draw_text(surface, f"Draws: {game.draws}", FONT_SIDEBAR_BODY, WHITE, BOARD_WIDTH + 150, y_draw, center=True)
 
+    # === Bouton "Undo Move" ===
+    y_undo = y_draw + 45
+    undo_btn_rect = pygame.Rect(BOARD_WIDTH + 50, y_undo, SIDEBAR_WIDTH - 100, 40)
+    
+    # Le bouton est actif si c'est au tour du joueur, que le jeu n'est pas fini,
+    # qu'aucune animation n'est en cours, et qu'il y a un coup à annuler.
+    is_undo_possible = (game.turn == game.player_color and 
+                        not game.game_over and 
+                        not game.is_animating() and 
+                        len(game.game_state_history) > 1)
+                        
+    undo_bg_color = GREEN if is_undo_possible else GREY
+    draw_button(surface, undo_btn_rect, "Undo Move", FONT_SIDEBAR_BODY, undo_bg_color, BLACK)
+    # ===================================================================
+
     # === Section pour le choix de la couleur ===
     draw_text(surface, "Play As:", FONT_SIDEBAR_TITLE, WHITE, BOARD_WIDTH + 150, 300, center=True)
-
-    copyright_text = "© 2025 Votre SNOUSSI ABDERRAHMANE"
-    draw_text(surface, copyright_text, FONT_COPYRIGHT, WHITE, BOARD_WIDTH + 150, HEIGHT - 20, center=True)
 
     # Bouton de choix "Cream"
     cream_choice_rect = pygame.Rect(BOARD_WIDTH + 25, 340, 120, 40)
@@ -112,7 +148,7 @@ def draw_sidebar(surface, game):
     menu_btn_rect = pygame.Rect(BOARD_WIDTH + 50, HEIGHT - 100, SIDEBAR_WIDTH - 100, 50)
     draw_button(surface, menu_btn_rect, "Back to Menu", FONT_SIDEBAR_BODY, GREY, BLACK)
     
-    return restart_btn_rect, menu_btn_rect, cream_choice_rect, black_choice_rect
+    return restart_btn_rect, menu_btn_rect, cream_choice_rect, black_choice_rect, undo_btn_rect
 
 
 def draw_board_coordinates(surface):
@@ -174,7 +210,7 @@ def main():
     rules_btn = pygame.Rect(WIDTH//2 - 150, 350, 300, 70)
     exit_btn = pygame.Rect(WIDTH//2 - 150, 450, 300, 70)
     back_btn = pygame.Rect(WIDTH//2 - 100, HEIGHT - 120, 200, 60)
-    restart_btn, menu_btn, cream_choice_btn, black_choice_btn = [pygame.Rect(0,0,0,0)] * 4
+    restart_btn, menu_btn, cream_choice_btn, black_choice_btn, undo_btn = [pygame.Rect(0,0,0,0)] * 5
 
     while run:
         clock.tick(FPS)
@@ -206,6 +242,15 @@ def main():
                         game.set_player_color(CREAM)
                     elif black_choice_btn.collidepoint(mouse_pos):
                         game.set_player_color(BLACK)
+
+                    # === Gérer le clic sur le bouton Undo ===
+                    elif undo_btn.collidepoint(mouse_pos):
+                        # On vérifie à nouveau que l'action est possible
+                        if (game.turn == game.player_color and 
+                            not game.game_over and 
+                            not game.is_animating() and 
+                            len(game.game_state_history) > 0):
+                            game.undo_move()
                     elif not game.is_animating() and not game.game_over:
                         row = mouse_pos[1] // SQUARE_SIZE
                         col = mouse_pos[0] // SQUARE_SIZE
@@ -243,13 +288,17 @@ def main():
                     # On récupère le score ET le coup
                     value, best_move_data = ai_result[0]
                     
-                    # On stocke les résultats dans l'objet game pour l'affichage
                     game.last_ai_depth = SEARCH_DEPTH
-                    game.last_ai_score = value
+                    game.last_ai_score = value # On garde le score brut pour la logique
                     game.last_ai_time = profiler.total_time
                     
-                    # On affiche les résultats détaillés dans la console (facultatif)
-                    profiler.display_results(SEARCH_DEPTH, value, best_move_data)
+                    # Si c'est un score de victoire, on stocke les plies et le moment
+                    if value > WIN_SCORE / 2:
+                        game.last_ai_plies_to_win = WIN_SCORE - value
+                        game.calculation_move_counter = game.move_counter
+                    elif value < LOSS_SCORE / 2:
+                        game.last_ai_plies_to_win = value - LOSS_SCORE
+                        game.calculation_move_counter = game.move_counter
 
                     game.ai_move(best_move_data)
                 else: # L'IA n'a pas de coup
@@ -278,7 +327,7 @@ def main():
             game.update() 
 
             ## Dessiner le plateau et les pièces
-            restart_btn, menu_btn, cream_choice_btn, black_choice_btn = draw_sidebar(WIN, game)
+            restart_btn, menu_btn, cream_choice_btn, black_choice_btn, undo_btn = draw_sidebar(WIN, game)
             draw_board_coordinates(WIN)
             
             # Vérifier la condition de victoire

@@ -2,6 +2,7 @@ import pygame
 from .constants import CREAM, BLACK, BLUE, SQUARE_SIZE, ROWS, COLS
 from checkers.board import Board
 from minimax.algorithm import zobrist_turn_black
+from copy import deepcopy
 
 class Game:
     def __init__(self, win):
@@ -21,6 +22,10 @@ class Game:
         self.last_ai_depth = 0
         self.last_ai_score = 0.0
         self.last_ai_time = 0.0
+        self.move_counter = 0 # Compteur de demi-coups total
+        self.last_ai_plies_to_win = 0 # Nombre de demi-coups calculé par l'IA
+        self.calculation_move_counter = -1 # Le moment où le calcul a été fait
+        self.game_state_history = [] # Historique des états du jeu pour l'annulation des coups
     
     def is_animating(self):
         """Retourne True si une animation est en cours."""
@@ -177,6 +182,18 @@ class Game:
         """Termine l'animation et met à jour l'état du jeu ET l'historique."""
         if not self.animation_data: return
 
+        # === Sauvegarder l'état AVANT d'effectuer le coup ===
+        # On sauvegarde les données essentielles qui définissent l'état actuel.
+        current_state = {
+            'board': deepcopy(self.board),
+            'turn': self.turn,
+            'moves_since_capture': self.moves_since_capture,
+            'position_history': self.position_history.copy(),
+            'move_counter': self.move_counter,
+            # On ne sauvegarde pas les stats de l'IA, elles ne font pas partie de l'état du jeu
+        }
+        self.game_state_history.append(current_state)
+
         piece = self.animation_data['piece']
         final_row = int(self.animation_data['target_y'] // SQUARE_SIZE)
         final_col = int(self.animation_data['current_x'] // SQUARE_SIZE)
@@ -195,6 +212,7 @@ class Game:
         self.board.make_move(piece, final_row, final_col)
         
         self.change_turn()
+        self.move_counter += 1  # Incrémenter le compteur de demi-coups
         
         # Mettre à jour l'historique des positions
         current_hash = self.board.zobrist_hash
@@ -217,6 +235,10 @@ class Game:
         self.last_ai_depth = 0
         self.last_ai_score = 0.0
         self.last_ai_time = 0.0
+        self.move_counter = 0
+        self.last_ai_plies_to_win = 0
+        self.calculation_move_counter = -1
+        self.game_state_history = []
     
     def update_winner(self):
         """Vérifie s'il y a un gagnant et met à jour l'état du jeu."""
@@ -424,4 +446,41 @@ class Game:
     
     def get_configuration(self):
         return self.board.get_board()
+    
+    # === La logique pour annuler un coup ===
+    def undo_move(self):
+        """
+        Annule le dernier coup du joueur ET la réponse de l'IA.
+        Restaure le jeu à l'état d'avant le dernier coup du joueur.
+        """
+        # Le joueur ne peut cliquer sur "Undo" que lorsque c'est son tour.
+        # Cela signifie qu'un coup du joueur et un coup de l'IA ont eu lieu.
+        # Nous avons donc besoin d'au moins 2 états dans l'historique.
+        if len(self.game_state_history) < 2:
+            print("Undo failed: Not enough history to undo a full turn.")
+            return
+
+        # 1. Annuler la réponse de l'IA (on retire l'état de la pile, mais on ne l'utilise pas)
+        self.game_state_history.pop()
+        
+        # 2. Annuler le coup du joueur (on retire l'état et on le restaure)
+        state_to_restore = self.game_state_history.pop()
+        
+        self.board = state_to_restore['board']
+        self.turn = state_to_restore['turn']
+        self.moves_since_capture = state_to_restore['moves_since_capture']
+        self.position_history = state_to_restore['position_history']
+        self.move_counter = state_to_restore['move_counter']
+
+        # Réinitialiser les états d'interaction et de fin de partie
+        self.selected = None
+        self.valid_moves = {}
+        self.game_over = False
+        self.winner_message = ""
+        # On efface les dernières stats de l'IA car elles ne sont plus pertinentes
+        self.last_ai_score = 0.0
+        self.last_ai_depth = 0
+        self.last_ai_time = 0.0
+        
+        #print("Your last turn (your move + AI response) has been undone.")
 
