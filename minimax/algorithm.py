@@ -1,7 +1,13 @@
 from checkers.constants import BLACK, CREAM, ROWS, COLS, LOSS_SCORE, DRAW_SCORE
 import random
+import time
 
-SEARCH_DEPTH = 5
+class SearchTimeout(Exception):
+    """Raised when the search exceeded the allotted time."""
+    pass
+
+
+SEARCH_DEPTH = 10
 
 # --- 1. INITIALISATION DU HACHAGE ZOBRIST ET DES STRUCTURES D'OPTIMISATION ---
 # Table de nombres aléatoires pour le hachage
@@ -22,12 +28,13 @@ zobrist_turn_black = random.getrandbits(64)
 transposition_table = {}
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
-def quiescenceSearch(board, alpha, beta, color_player, profiler):
-    """
-    Recherche de quiétude qui utilise maintenant le pattern Make/Undo.
-    Elle n'explore que les coups de capture.
-    """
-    profiler.increment_nodes()
+def quiescenceSearch(board, alpha, beta, color_player, profiler, deadline=None):
+    # bail-out time check
+    if deadline is not None and time.perf_counter() >= deadline:
+        raise SearchTimeout()
+
+    if profiler:
+        profiler.increment_nodes()
 
     stand_pat_eval = board.evaluate(color_player)
 
@@ -38,47 +45,49 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler):
         alpha = stand_pat_eval
 
     capture_moves_dict = get_capture_moves(board, color_player)
-    
+
     capture_moves_list = []
     for piece, moves in capture_moves_dict.items():
         for move, details in moves.items():
             capture_moves_list.append((piece, move, details))
-    
+
     for move_data in capture_moves_list:
-        # La variable est 'skipped_pieces' ici, car elle est décomposée de move_data
+        if deadline is not None and time.perf_counter() >= deadline:
+            raise SearchTimeout()
+
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
         final_skipped_list = []
         if isinstance(skipped_pieces, dict):
-            # Si c'est un dictionnaire (saut de roi), on prend la liste depuis la clé 'skipped'
-            final_skipped_list = skipped_pieces['skipped']
+            final_skipped_list = skipped_pieces.get("skipped", [])
         else:
-            # Sinon, c'est déjà la bonne liste (saut de pion)
             final_skipped_list = skipped_pieces
-        # ===========================================================================
 
-        # --- FAIRE LE COUP (MAKE MOVE) ---
-        # On utilise maintenant la liste nettoyée 'final_skipped_list'
         removed = board.remove_and_get_skipped(final_skipped_list)
         was_promoted = board.make_move(piece, end_row, end_col)
-        
-        # Appel récursif (on passe le même objet 'board')
-        score = -quiescenceSearch(board, -beta, -alpha, CREAM if color_player == BLACK else BLACK, profiler)
-        
-        # --- DÉFAIRE LE COUP (UNDO MOVE) ---
+
+        score = -quiescenceSearch(
+            board,
+            -beta,
+            -alpha,
+            CREAM if color_player == BLACK else BLACK,
+            profiler,
+            deadline,
+        )
+
         board.undo_move(piece, start_row, start_col, was_promoted)
         board.restore_skipped(removed)
-        
+
         if score >= beta:
             return beta
-        
+
         if score > alpha:
             alpha = score
-            
+
     return alpha
 
-def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, position_history, moves_since_capture):
+def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, position_history, moves_since_capture, deadline=None):
 
     # === Détection d'un état de victoire/défaite certain ===
     # 1. Vérifier les conditions de nullité en premier
@@ -102,7 +111,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
 
     # Si la profondeur est nulle, on retourne l'évaluation heuristique.
     if depth == 0:
-        q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler)
+        q_eval = quiescenceSearch(position, alpha, beta, color_player, profiler, deadline)
         return q_eval, None
     
     alpha_orig = alpha
@@ -161,7 +170,7 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
         was_promoted = position.make_move(piece, end_row, end_col)
         
         # Appel récursif avec l'historique mis à jour
-        evaluation = -NegaMax(position, depth - 1, next_color, -beta, -alpha, killer_moves, profiler, position_history, new_moves_since_capture)[0]
+        evaluation = -NegaMax(position, depth - 1, next_color, -beta, -alpha, killer_moves, profiler, position_history, new_moves_since_capture, deadline)[0]
         
         # --- DÉFAIRE LE COUP (UNDO MOVE) ---
         position.undo_move(piece, start_row, start_col, was_promoted)
@@ -198,6 +207,81 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves, profiler, 
     }
     
     return alpha, best_move_data
+
+# ------------- FONCTION D'ITERATIVE DEEPENING -------------------#
+def iterative_deepening(position, max_depth, color_player, time_limit=None,
+                        profiler=None, position_history=None, moves_since_capture=0,
+                        aspiration_window=50):
+    """
+    Returns: (best_score, best_move, depth_reached, elapsed_seconds)
+    - position: Board instance (typically a deepcopy)
+    - max_depth: int
+    - time_limit: seconds (float) or None
+    - profiler: AIProfiler or None
+    """
+    start = time.perf_counter()
+    deadline = start + time_limit if time_limit is not None else None
+
+    best_move = None
+    best_score = None
+    depth_reached = 0
+
+    # reset profiler if provided
+    if profiler:
+        profiler.reset()
+        profiler.start_timer()
+
+    for depth in range(1, max_depth + 1):
+        try:
+            # aspiration window: try a narrow window around previous score
+            if best_score is None:
+                score, move = NegaMax(position, depth, color_player,
+                                      float("-inf"), float("inf"),
+                                      {}, profiler,
+                                      position_history.copy() if position_history else {},
+                                      moves_since_capture,
+                                      deadline)
+            else:
+                alpha = best_score - aspiration_window
+                beta = best_score + aspiration_window
+                try:
+                    score, move = NegaMax(position, depth, color_player,
+                                          alpha, beta,
+                                          {}, profiler,
+                                          position_history.copy() if position_history else {},
+                                          moves_since_capture,
+                                          deadline)
+                    # if window failed (score outside) we'll get a valid score but it may be clipped;
+                    # test and re-search with full window if necessary:
+                    if score <= alpha or score >= beta:
+                        score, move = NegaMax(position, depth, color_player,
+                                              float("-inf"), float("inf"),
+                                              {}, profiler,
+                                              position_history.copy() if position_history else {},
+                                              moves_since_capture,
+                                              deadline)
+                except SearchTimeout:
+                    # timeout during aspiration search: stop and return last completed depth
+                    break
+            # Completed depth
+            best_move = move
+            best_score = score
+            depth_reached = depth
+
+            # if deadline reached right after depth, break to return last completed
+            if deadline is not None and time.perf_counter() >= deadline:
+                break
+
+        except SearchTimeout:
+            # timed out while exploring this depth -> stop and return previous best
+            break
+
+    elapsed = time.perf_counter() - start
+    if profiler:
+        profiler.stop_timer()
+        profiler.set_tt_size(len(transposition_table))
+
+    return best_score, best_move, depth_reached, elapsed
 
 def get_possible_moves(board, color):
     """
@@ -271,4 +355,3 @@ def extract_max_jumps(moves):
         return max_jump_moves
     else:
         return {}
-

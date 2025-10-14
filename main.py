@@ -3,7 +3,7 @@
 import pygame
 from checkers.constants import *
 from checkers.game import Game
-from minimax.algorithm import NegaMax, transposition_table, SEARCH_DEPTH
+from minimax.algorithm import NegaMax, transposition_table, SEARCH_DEPTH, iterative_deepening
 from minimax.profiler import AIProfiler
 import sys
 import threading
@@ -176,18 +176,26 @@ def draw_board_coordinates(surface):
 def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler, result_container, position_history, moves_since_capture):
     """
     Cette fonction sera exécutée dans un thread séparé sur une COPIE du plateau.
+    Utilise maintenant la technique d'approfondissement itératif.
     """
-    #profiler.reset()
-    #profiler.start_timer()
     transposition_table.clear()
     
-    # Lancer la recherche NegaMax
-    value, best_move_data = NegaMax(board_to_search, SEARCH_DEPTH, ai_color, float("-inf"), float("inf"), killer_moves, profiler, position_history, moves_since_capture)
+    # Configurer le temps limite pour l'IA (5 secondes par défaut)
+    time_limit = 5.0
     
-    #profiler.stop_timer()
-    #profiler.set_tt_size(len(transposition_table))
-    #profiler.display_results(SEARCH_DEPTH, value, best_move_data)
-    result_container.append((value, best_move_data))
+    # Lancer la recherche avec approfondissement itératif
+    best_score, best_move, depth_reached, elapsed_time = iterative_deepening(
+        board_to_search, 
+        SEARCH_DEPTH, 
+        ai_color, 
+        time_limit=time_limit,
+        profiler=profiler,
+        position_history=position_history.copy(),
+        moves_since_capture=moves_since_capture
+    )
+    
+    # Stocker les résultats avec la profondeur réellement atteinte
+    result_container.append((best_score, best_move, depth_reached, elapsed_time))
 
 # --- Boucle Principale ---
 def main():
@@ -284,22 +292,22 @@ def main():
                 profiler.set_tt_size(len(transposition_table))
 
                 if ai_result:
-                    # On récupère le score ET le coup
-                    value, best_move_data = ai_result[0]
+                    # On récupère les résultats de l'approfondissement itératif
+                    best_score, best_move, depth_reached, elapsed_time = ai_result[0]
                     
-                    game.last_ai_depth = SEARCH_DEPTH
-                    game.last_ai_score = value # On garde le score brut pour la logique
-                    game.last_ai_time = profiler.total_time
+                    game.last_ai_depth = depth_reached  # Utiliser la profondeur réellement atteinte
+                    game.last_ai_score = best_score
+                    game.last_ai_time = elapsed_time
                     
                     # Si c'est un score de victoire, on stocke les plies et le moment
-                    if value > WIN_SCORE / 2:
-                        game.last_ai_plies_to_win = WIN_SCORE - value
+                    if best_score > WIN_SCORE / 2:
+                        game.last_ai_plies_to_win = WIN_SCORE - best_score
                         game.calculation_move_counter = game.move_counter
-                    elif value < LOSS_SCORE / 2:
-                        game.last_ai_plies_to_win = value - LOSS_SCORE
+                    elif best_score < LOSS_SCORE / 2:
+                        game.last_ai_plies_to_win = best_score - LOSS_SCORE
                         game.calculation_move_counter = game.move_counter
 
-                    game.ai_move(best_move_data)
+                    game.ai_move(best_move)
                 else: # L'IA n'a pas de coup
                     game.update_winner()
                 ai_thread = None # Réinitialiser le thread pour le prochain tour
