@@ -1,7 +1,7 @@
 from checkers.constants import BLACK, CREAM, ROWS, COLS, LOSS_SCORE, DRAW_SCORE
 import random
 
-SEARCH_DEPTH = 5
+SEARCH_DEPTH = 8
 
 # --- 1. INITIALISATION DU HACHAGE ZOBRIST ET DES STRUCTURES D'OPTIMISATION ---
 # Table de nombres aléatoires pour le hachage
