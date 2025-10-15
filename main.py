@@ -62,10 +62,15 @@ def draw_sidebar(surface, game):
     # 1. Profondeur (Depth)
     y_depth = ai_analysis_y_start + 20
     draw_text(surface, "DEPTH", FONT_AI_STATS_LABEL, AI_GREEN, label_x, y_depth)
-    pygame.draw.rect(surface, AI_GREEN, (bar_x, y_depth, bar_size[0],
-                                        bar_size[1]))
-    draw_text(surface, str(game.last_ai_depth), FONT_AI_STATS_VALUE, AI_GREEN,
-              value_x, y_depth)
+    pygame.draw.rect(surface, AI_GREEN, (bar_x, y_depth, bar_size[0], bar_size[1]))
+
+    depth_val = game.last_ai_depth if game.last_ai_depth else SEARCH_DEPTH
+    if depth_val < SEARCH_DEPTH:
+        depth_display = f"{depth_val}/{SEARCH_DEPTH}"
+    else:
+        depth_display = str(depth_val)
+
+    draw_text(surface, str(game.last_ai_depth), FONT_AI_STATS_VALUE, AI_GREEN, value_x, y_depth)
 
     # 2. Score
     y_score = y_depth + 20
@@ -203,6 +208,9 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
     """
     Cette fonction est exécutée dans un thread séparé sur une COPIE du plateau.
     Implémente iterative deepening: profondeur 1..max_depth, arrêt si timeout.
+    Retourne dans result_container un tuple (best_score, best_move_data, best_depth)
+    où best_depth est la profondeur à laquelle le meilleur coup renvoyé a été
+    trouvé (None si aucun coup complet n'a été obtenu).
     """
     transposition_table.clear()
 
@@ -211,6 +219,7 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
 
     best_score = None
     best_move_data = None
+    best_depth = None
 
     try:
         for depth in range(1, max_depth + 1):
@@ -236,6 +245,7 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
             if move is not None:
                 best_score = value
                 best_move_data = move
+                best_depth = depth
 
             # Arrêt anticipé si score décisif trouvé
             if best_score is not None and abs(best_score) > WIN_SCORE / 2:
@@ -245,7 +255,8 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
         # Temps écoulé : on retourne le dernier coup complet
         pass
 
-    result_container.append((best_score, best_move_data))
+    # On retourne aussi la profondeur à laquelle le meilleur coup a été trouvé
+    result_container.append((best_score, best_move_data, best_depth))
 
 
 # --- Boucle Principale ---
@@ -356,10 +367,13 @@ def main():
                 profiler.set_tt_size(len(transposition_table))
 
                 if ai_result:
-                    # On récupère le score ET le coup
-                    value, best_move_data = ai_result[0]
+                    # On récupère le score, le coup et la profondeur trouvée
+                    value, best_move_data, found_depth = ai_result[0]
 
-                    game.last_ai_depth = SEARCH_DEPTH
+                    # On stocke la profondeur réelle où le coup a été trouvé.
+                    # Si aucun best_depth n'a été renvoyé on conserve SEARCH_DEPTH.
+                    game.last_ai_depth = found_depth if found_depth else SEARCH_DEPTH
+
                     game.last_ai_score = value  # On garde le score brut
                     game.last_ai_time = profiler.total_time
 
