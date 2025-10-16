@@ -126,11 +126,6 @@ class Board:
             pygame.draw.circle(win, animating_piece.color, (animation_data['current_x'], animation_data['current_y']), SQUARE_SIZE//2 - 15)
             if animating_piece.king:
                 win.blit(CROWN, (animation_data['current_x'] - CROWN.get_width()//2, animation_data['current_y'] - CROWN.get_height()//2))
-    
-    def print_board(self):
-        for row in range(ROWS):
-            for col in range(COLS):
-                print(self.board[row][col])
 
     def remove(self, pieces):
         for piece in pieces:

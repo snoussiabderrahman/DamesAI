@@ -395,54 +395,8 @@ class Game:
         else:
             self.turn = CREAM
 
-    def extract_max_jumps(self, moves):
-        max_jumps = max(len(skipped) for skipped in moves.values())  # Find the maximum number of skipped pieces
-
-        # Filter moves that have the maximum skipped pieces
-        max_jump_moves = {move: skipped for move, skipped in moves.items() if len(skipped) == max_jumps}
-
-        return max_jump_moves
-
     def get_board(self):
         return self.board
-    
-
-    def add_number_moves(self, color):
-        print("color", color)
-        if color == CREAM:
-            self.board.number_cream_moves = self.board.number_cream_moves + 1
-        else:
-            self.board.number_black_moves = self.board.number_black_moves + 1
-
-    def init_number_moves(self, color):
-        print("init number moves")
-        if color == CREAM:
-            self.board.number_cream_moves = 0
-        else:
-            self.board.number_black_moves = 0
-    
-    def test_skip(moves):
-        if isinstance(moves, dict):
-            for value in moves.values():
-                if isinstance(value, list) and len(value) != 0:
-                    return True
-        return False
-    
-    def skip_or_non(self, color):
-        mandatory_moves = self.check_mandatory_moves(self.turn)
-        if self.selected == color:
-            if mandatory_moves:
-                self.init_number_moves(color)
-            else:
-                self.add_number_moves(color)
-    
-    # Function to store game state
-    def get_state(self):
-        # Return current game state as a tuple
-        board_config = self.get_configuration()  
-        current_player = self.turn
-        additional_info = (self.board.black_left, self.board.black_kings)  
-        return board_config, current_player, additional_info
     
     def get_configuration(self):
         return self.board.get_board()
@@ -482,5 +436,3 @@ class Game:
         self.last_ai_depth = 0
         self.last_ai_time = 0.0
         
-        #print("Your last turn (your move + AI response) has been undone.")
-

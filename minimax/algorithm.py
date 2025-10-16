@@ -302,14 +302,3 @@ def get_capture_moves(board, color):
 
     return final_captures
 
-
-def extract_max_jumps(moves):
-    if moves:
-        max_jumps = max(len(skipped) for skipped in moves.values())
-        max_jump_moves = {
-            move: skipped for move, skipped in moves.items()
-            if len(skipped) == max_jumps
-        }
-        return max_jump_moves
-    else:
-        return {}
