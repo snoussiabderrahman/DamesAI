@@ -31,6 +31,34 @@ def _check_time(profiler, time_limit):
     if time_limit is not None and profiler.start_time:
         if time.perf_counter() - profiler.start_time > time_limit:
             raise SearchTimeout()
+        
+def move_to_key(move_data):
+    """
+    Retourne une clé immuable décrivant un coup :
+    (start_row, start_col, end_row, end_col, (skipped positions...))
+    Permet de stocker/comparer des "killer moves" indépendamment des
+    objets Piece (mutables).
+    """
+    piece, (end_row, end_col), details = move_data
+    start_row, start_col = piece.row, piece.col
+
+    if isinstance(details, dict):
+        skipped = details.get("skipped", [])
+    else:
+        skipped = details
+
+    skipped_coords = tuple((p.row, p.col) for p in skipped) if skipped else ()
+    return (start_row, start_col, end_row, end_col, skipped_coords)
+
+
+def is_capture_move(move_data):
+    """True si le coup capture au moins une pièce."""
+    details = move_data[2]
+    if isinstance(details, dict):
+        skipped = details.get("skipped", [])
+    else:
+        skipped = details
+    return bool(skipped)
 
 
 #------------- FONCTION QUIESCENCE SEARCH -------------------#
@@ -98,22 +126,28 @@ def quiescenceSearch(board, alpha, beta, color_player, profiler,
 
     return alpha
 
-
-def NegaMax(position, depth, color_player, alpha, beta, killer_moves,
-            profiler, position_history, moves_since_capture,
-            time_limit=None):
+def NegaMax(
+    position,
+    depth,
+    color_player,
+    alpha,
+    beta,
+    profiler,
+    position_history,
+    moves_since_capture,
+    time_limit=None,
+):
     """
-    NegaMax avec alpha-beta, table de transposition et propagation du
-    time_limit. Utilise make/undo pour manipuler l'état.
+    NegaMax avec alpha-beta, table de transposition et ordering coups.
     """
     _check_time(profiler, time_limit)
 
-    # === Détection d'un état de victoire/défaite certain ===
+    # Règles de nullité
     if any(count >= 3 for count in position_history.values()) or \
        moves_since_capture >= 40:
         return DRAW_SCORE, None
 
-    # Vérifier si le joueur actuel a des coups à jouer
+    # Vérifier s'il y a des coups légaux
     has_moves = False
     for piece in position.get_all_pieces(color_player):
         if position.get_valid_moves(piece):
@@ -121,7 +155,6 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves,
             break
 
     if not has_moves:
-        # Perdu : on ajoute la profondeur pour retarder la défaite
         return LOSS_SCORE + (SEARCH_DEPTH - depth), None
 
     if depth == 0:
@@ -142,18 +175,18 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves,
         and tt_entry["position_repr"] == position.__repr__()
     ):
         profiler.increment_tt_hits()
-        if tt_entry['flag'] == 'EXACT':
-            return tt_entry['score'], tt_entry['best_move']
-        elif tt_entry['flag'] == 'LOWERBOUND':
-            alpha = max(alpha, tt_entry['score'])
-        elif tt_entry['flag'] == 'UPPERBOUND':
-            beta = min(beta, tt_entry['score'])
+        if tt_entry["flag"] == "EXACT":
+            return tt_entry["score"], tt_entry["best_move"]
+        elif tt_entry["flag"] == "LOWERBOUND":
+            alpha = max(alpha, tt_entry["score"])
+        elif tt_entry["flag"] == "UPPERBOUND":
+            beta = min(beta, tt_entry["score"])
         if alpha >= beta:
-            return tt_entry['score'], tt_entry['best_move']
+            return tt_entry["score"], tt_entry["best_move"]
 
     profiler.increment_nodes()
 
-    # Vérifier victoire/défaite à nouveau avec la fonction winner
+    # Vérifier victoire/défaite via winner
     if position.winner(color_player, position_history, moves_since_capture) \
        is not None:
         return position.evaluate(color_player), None
@@ -161,47 +194,74 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves,
     best_move_data = None
     possible_moves = get_possible_moves(position, color_player)
 
-    # --- Boucle de recherche ---
-    for move_data in possible_moves:
+    # --- Ordonnancement des coups (TT best, captures, autres) ---
+    tt_best_key = None
+    if tt_entry and tt_entry.get("best_move") is not None:
+        try:
+            tt_best_key = move_to_key(tt_entry["best_move"])
+        except Exception:
+            tt_best_key = None
+
+    moves_meta = []
+    for md in possible_moves:
+        try:
+            mkey = move_to_key(md)
+        except Exception:
+            mkey = None
+        cap = is_capture_move(md)
+
+        # Ranking: 0=TT best, 1=capture, 2=other
+        rank = 2
+        if tt_best_key is not None and mkey == tt_best_key:
+            rank = 0
+        elif cap:
+            rank = 1
+
+        moves_meta.append((rank, md, mkey, cap))
+
+    moves_meta.sort(key=lambda x: x[0])
+
+    # --- Boucle principale de recherche ---
+    for _, move_data, move_key, _is_capture in moves_meta:
         _check_time(profiler, time_limit)
 
         piece, (end_row, end_col), skipped_pieces = move_data
         start_row, start_col = piece.row, piece.col
 
-        # Préparer l'historique simulé pour l'appel récursif
         next_color = CREAM if color_player == BLACK else BLACK
-        final_skipped_list = skipped_pieces['skipped'] if isinstance(
-            skipped_pieces, dict) else skipped_pieces
+        final_skipped_list = (
+            skipped_pieces["skipped"]
+            if isinstance(skipped_pieces, dict)
+            else skipped_pieces
+        )
         new_moves_since_capture = 0 if final_skipped_list else \
-            moves_since_capture + 1
+                                 moves_since_capture + 1
 
-        # Mettre à jour l'hash d'historique
+        # Mise à jour simulée de l'historique (hash)
         next_hash = position.zobrist_hash
         if next_color == BLACK:
             next_hash ^= zobrist_turn_black
 
         position_history[next_hash] = position_history.get(next_hash, 0) + 1
 
-        # --- FAIRE LE COUP (MAKE MOVE) ---
+        # Faire le coup (make)
         removed = position.remove_and_get_skipped(final_skipped_list)
         was_promoted = position.make_move(piece, end_row, end_col)
 
         try:
-            # Appel récursif
             evaluation = -NegaMax(
                 position,
                 depth - 1,
                 next_color,
                 -beta,
                 -alpha,
-                killer_moves,
                 profiler,
                 position_history,
                 new_moves_since_capture,
                 time_limit,
             )[0]
         finally:
-            # --- DÉFAIRE LE COUP (UNDO MOVE) ---
+            # Défaire le coup (undo)
             position.undo_move(piece, start_row, start_col, was_promoted)
             position.restore_skipped(removed)
 
@@ -220,11 +280,11 @@ def NegaMax(position, depth, color_player, alpha, beta, killer_moves,
 
     # --- Sauvegarde dans la table de transposition (TT) ---
     if alpha <= alpha_orig:
-        flag = 'UPPERBOUND'
+        flag = "UPPERBOUND"
     elif alpha >= beta:
-        flag = 'LOWERBOUND'
+        flag = "LOWERBOUND"
     else:
-        flag = 'EXACT'
+        flag = "EXACT"
 
     transposition_table[current_hash] = {
         "score": alpha,

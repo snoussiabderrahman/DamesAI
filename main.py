@@ -202,7 +202,7 @@ def draw_board_coordinates(surface):
 
 
 # --- Fonction wrapper pour le calcul de l'IA ---
-def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
+def run_ai_calculation(board_to_search, ai_color, profiler,
                        result_container, position_history, moves_since_capture,
                        time_limit=None, max_depth=None):
     """
@@ -234,7 +234,6 @@ def run_ai_calculation(board_to_search, ai_color, killer_moves, profiler,
                 ai_color,
                 float("-inf"),
                 float("inf"),
-                killer_moves,
                 profiler,
                 position_history,
                 moves_since_capture,
@@ -268,7 +267,6 @@ def main():
     # Initialisation du jeu et de l'IA
     game = Game(WIN)
     profiler = AIProfiler()
-    killer_moves = {}
 
     # === Variables pour gérer le thread de l'IA ===
     ai_thread = None
@@ -348,7 +346,6 @@ def main():
                     args=(
                         board_copy,
                         ai_color,
-                        killer_moves,
                         profiler,
                         ai_result,
                         game.position_history.copy(),
@@ -386,6 +383,7 @@ def main():
                         game.calculation_move_counter = game.move_counter
 
                     game.ai_move(best_move_data)
+                    #profiler.display_results(game.last_ai_depth, value ,best_move_data)
                 else:  # L'IA n'a pas de coup
                     game.update_winner()
                 ai_thread = None  # Réinitialiser le thread pour le prochain tour
